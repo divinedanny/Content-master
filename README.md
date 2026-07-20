@@ -18,14 +18,16 @@ dashboard makes that visible — unanswered count, oldest wait, the most-neglect
 per-channel _response equity_ — then routes the owner straight to the backlog.
 
 Every section carries a **per-platform tab strip** (All · WhatsApp · Instagram · Facebook ·
-TikTok · LinkedIn · X · Google) — the defining interaction pattern.
+TikTok · LinkedIn · X · Google) — the defining interaction pattern. A **notifications bell** in
+the top bar surfaces every waiting customer — new DMs, @mentions, comments and reviews — with a
+live unread count, and **Mentions** is its own section so a tag never gets lost among comments.
 
 ## What's in here
 
 | Folder | Stack | What it is |
 |---|---|---|
 | `backend/` | Django 6 + DRF, SQLite | The API — adapters, unified inbox, AI-draft approval gate, Monnify billing. Serves seeded demo data through the production `ChannelAdapter` contract via `MockAdapter`. |
-| `frontend/` | Next.js 14 + TypeScript + Tailwind | The web MVP — six sections, mobile-responsive, talks to the backend API. |
+| `frontend/` | Next.js 14 + TypeScript + Tailwind | The web MVP — Home, Messages, Comments, Mentions, Posts, Analytics, Settings — plus a notifications bell, mobile-responsive, talks to the backend API. |
 
 ## Product principles (non-negotiable, honoured in the UI)
 

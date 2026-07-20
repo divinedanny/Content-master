@@ -30,6 +30,8 @@ export function InboxWorkspace({
   negativeFirst = false,
   suppressCountFor = [],
   describeEmpty,
+  clientFilter,
+  countLoader,
 }: {
   // channel tab keys to show (order from CHANNELS)
   channels: ChannelKey[];
@@ -42,6 +44,10 @@ export function InboxWorkspace({
   suppressCountFor?: ChannelKey[];
   // override the empty state per tab (used for the honest LinkedIn no-DM wall)
   describeEmpty?: (tab: TabKey, info?: ChannelInfo) => EmptyDescriptor | null;
+  // narrow the fetched list client-side (e.g. mentions-only vs comments-only)
+  clientFilter?: (i: Interaction) => boolean;
+  // custom per-tab unanswered counts; falls back to channels() when omitted
+  countLoader?: () => Promise<Partial<Record<TabKey, number>>>;
 }) {
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [items, setItems] = useState<Interaction[] | null>(null);
@@ -50,10 +56,18 @@ export function InboxWorkspace({
   const [channelInfo, setChannelInfo] = useState<ChannelInfo[]>([]);
   const [showConvoMobile, setShowConvoMobile] = useState(false);
 
-  // unanswered counts for tab badges
+  // channel metadata (for the honest no-DM wall) is always needed
   useEffect(() => {
+    api.channels().then(setChannelInfo);
+  }, []);
+
+  // unanswered counts for tab badges
+  const refreshCounts = useCallback(() => {
+    if (countLoader) {
+      countLoader().then(setCounts);
+      return;
+    }
     api.channels().then((chs: ChannelInfo[]) => {
-      setChannelInfo(chs);
       const c: Partial<Record<TabKey, number>> = {};
       let all = 0;
       chs.forEach((ch) => {
@@ -68,16 +82,21 @@ export function InboxWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels]);
 
+  useEffect(() => {
+    refreshCounts();
+  }, [refreshCounts]);
+
   const load = useCallback(() => {
     const q = resolveQuery(tab);
     setItems(null);
     api.inbox(q).then((data) => {
+      const filtered = clientFilter ? data.filter(clientFilter) : data;
       const sorted = negativeFirst
-        ? [...data].sort((a, b) => {
+        ? [...filtered].sort((a, b) => {
             const rank = (s: string) => (s === "negative" ? 0 : s === "neutral" ? 1 : 2);
             return rank(a.sentiment) - rank(b.sentiment);
           })
-        : data;
+        : filtered;
       setItems(sorted);
       setSelectedId((prev) => (prev && sorted.some((i) => i.id === prev) ? prev : sorted[0]?.id ?? null));
     });
@@ -147,7 +166,10 @@ export function InboxWorkspace({
             <Conversation
               key={selected.id}
               interactionId={selected.id}
-              onResolved={load}
+              onResolved={() => {
+                load();
+                refreshCounts();
+              }}
               onBack={() => setShowConvoMobile(false)}
             />
           ) : (

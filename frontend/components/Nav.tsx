@@ -13,6 +13,7 @@ const ITEMS: NavItem[] = [
   { href: "/", label: "Home", icon: <HomeIcon /> },
   { href: "/messages", label: "Messages", icon: <ChatIcon /> },
   { href: "/comments", label: "Comments", icon: <CommentIcon /> },
+  { href: "/mentions", label: "Mentions", icon: <MentionIcon /> },
   { href: "/posts", label: "Posts", icon: <PostIcon /> },
   { href: "/analytics", label: "Analytics", icon: <ChartIcon /> },
   { href: "/settings", label: "Settings", icon: <GearIcon /> },
@@ -125,6 +126,14 @@ function CommentIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function MentionIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 8v5a3 3 0 0 0 5 0v-1a9 9 0 1 0-3.5 7.1" strokeLinecap="round" />
     </svg>
   );
 }

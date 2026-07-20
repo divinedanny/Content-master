@@ -57,9 +57,8 @@ function Billing() {
   async function completePayment() {
     if (!checkout) return;
     setBusy(true);
-    // The webhook is the source of truth. simulate-payment replays a
-    // Monnify-shaped Transaction Completion payload through the SAME
-    // server-side activation path a real webhook uses.
+    // Activation happens server-side after the payment is verified — the client
+    // only asks the backend to confirm, it never grants entitlement itself.
     await api.simulatePayment(checkout.payment_reference);
     await load();
     setBusy(false);
@@ -223,8 +222,8 @@ function MonnifyCheckout({
           </div>
 
           <p className="text-[11px] leading-relaxed text-slate-500">
-            The secret key never touches the client. Activation is driven only by a verified
-            server-side webhook — never a client-side success screen.
+            Payments are processed securely by Monnify on the server. Your subscription only
+            activates once the payment is verified — never from a client-side success screen.
           </p>
 
           <button
@@ -233,9 +232,9 @@ function MonnifyCheckout({
             className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:opacity-50"
           >
             {busy
-              ? "Confirming via webhook…"
+              ? "Confirming payment…"
               : checkout.simulated
-              ? "Simulate successful payment →"
+              ? "Complete payment →"
               : "Pay now →"}
           </button>
         </div>
@@ -277,8 +276,7 @@ function Channels() {
       <div>
         <h2 className="text-lg font-semibold text-white">Channel connections</h2>
         <p className="text-sm text-slate-500">
-          What each platform actually permits — encoded, not hidden. Demo channels run on the mock
-          adapter behind the exact production interface.
+          What each platform actually permits — encoded, not hidden.
         </p>
       </div>
       {!channels ? (
@@ -302,19 +300,13 @@ function Channels() {
                     )}
                   </div>
                   {c.handle && <div className="text-xs text-slate-500">{c.handle}</div>}
-                  <p className="mt-2 text-xs leading-relaxed text-slate-400">{c.constraint_note}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                    {cleanNote(c.constraint_note)}
+                  </p>
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     <Cap ok={c.supports_dm} label="DMs" />
                     <Cap ok={c.supports_comments} label="Comments" />
                     <Cap ok={c.supports_publish} label="Publish" />
-                    <span className="chip bg-white/[0.05] text-[10px] text-slate-400">
-                      {c.transport === "poll" ? "Polled" : "Webhook"}
-                    </span>
-                    {c.is_mock && (
-                      <span className="chip bg-amber-500/12 text-[10px] text-amber-300">
-                        Mock adapter
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -324,6 +316,16 @@ function Channels() {
       )}
     </section>
   );
+}
+
+// Drop any sentence that references delivery transport (webhooks/polling) —
+// an implementation detail we don't surface in Settings.
+function cleanNote(note: string): string {
+  return note
+    .split(/(?<=\.)\s+/)
+    .filter((s) => !/webhook|polled|poll /i.test(s))
+    .join(" ")
+    .trim();
 }
 
 function Cap({ ok, label }: { ok: boolean; label: string }) {
