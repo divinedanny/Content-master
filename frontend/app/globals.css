@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  background: #0a0e17;
+  color: #e6ebf5;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grid glow backdrop for the whole app */
+body {
+  background-image: radial-gradient(
+      1200px 600px at 15% -10%,
+      rgba(61, 111, 255, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at 100% 0%, rgba(225, 48, 108, 0.08), transparent 55%);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-white/[0.06] bg-ink-850/80 shadow-panel backdrop-blur;
+  }
+  .panel-hover {
+    @apply transition-colors hover:border-white/[0.12] hover:bg-ink-800/80;
+  }
+  .stat-num {
+    @apply text-3xl font-bold tracking-tight text-white sm:text-4xl;
+  }
+  .muted {
+    @apply text-slate-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
