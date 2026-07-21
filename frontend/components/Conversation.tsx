@@ -49,6 +49,17 @@ export function Conversation({
     reload();
   }, [reload]);
 
+  // Live refresh: poll the open thread so new inbound/outbound messages appear
+  // without a manual reload. Silent — reload() keeps the current thread on
+  // screen and never clears the composer (its text is separate state).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      reload();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [reload]);
+
   // Re-render on outbox changes, and reload the thread when one of this
   // thread's messages transitions to sent (so the server bubble replaces the
   // optimistic one instead of vanishing when it's pruned).

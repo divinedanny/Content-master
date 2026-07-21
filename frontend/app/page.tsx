@@ -14,10 +14,18 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .attention()
-      .then(setData)
-      .catch(() => setError("Could not reach the backend. Is it running on :8000?"));
+    const fetchIt = () =>
+      api
+        .attention()
+        .then(setData)
+        .catch(() => setError("Could not reach the backend. Is it running on :8000?"));
+    fetchIt();
+    // Live refresh so the attention numbers move as messages arrive/are answered.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchIt();
+    }, 10000);
+    return () => clearInterval(id);
   }, []);
 
   if (error) return <BackendError message={error} />;

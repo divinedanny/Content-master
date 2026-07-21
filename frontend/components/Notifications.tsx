@@ -106,6 +106,12 @@ export function NotificationsBell() {
     );
     setSeenAt(stored || 0);
     load();
+    // Live refresh so the unread badge updates as new items arrive.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      load();
+    }, 12000);
+    return () => clearInterval(id);
   }, [load]);
 
   // close on outside click / escape
