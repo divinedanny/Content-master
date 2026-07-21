@@ -102,8 +102,20 @@ npm run dev
 ```
 
 Open <http://localhost:3000>. The API base is configured in `frontend/.env.local`
-(`NEXT_PUBLIC_API_BASE`, defaults to `http://localhost:8000`). CORS is already open for
-`localhost:3000`.
+(`NEXT_PUBLIC_API_BASE`, defaults to same-origin via the Next proxy).
+
+### Signing in
+
+The app is **login-required**. `seed_demo` creates a demo account so you can sign in right away
+(override with `DEMO_EMAIL` / `DEMO_PASSWORD`):
+
+```
+demo@avionhub.ng  /  demo1234
+```
+
+Register, sign in, and forgot/reset-password all work. In MVP/Demo the password-reset link is
+returned in the response (no mail server); wire SMTP for production. Auth uses signed bearer
+tokens and the entire API requires authentication.
 
 ---
 

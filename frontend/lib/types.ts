@@ -85,6 +85,8 @@ export interface ChannelInfo {
   label: string;
   connected: boolean;
   is_mock: boolean;
+  is_live: boolean;
+  oauth_configured: boolean;
   handle: string;
   supports_dm: boolean;
   supports_comments: boolean;

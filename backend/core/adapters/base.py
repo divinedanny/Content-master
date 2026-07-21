@@ -11,7 +11,10 @@ travel platform: swap the implementation, the pipeline is untouched.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Protocol
+
+from django.utils import timezone
 
 from core.models import Channel
 
@@ -195,3 +198,61 @@ class ChannelAdapter(Protocol):
 
 def capability(channel: str) -> ChannelCapability:
     return CAPABILITIES[channel]
+
+
+# ---------------------------------------------------------------------------
+# Shared send-policy check — real platform constraints (TRD §4.4) plus our
+# own quiet hours (BR-03). Every adapter, mock or real, evaluates the same
+# rules here so "what WhatsApp actually allows" has exactly one definition.
+# ---------------------------------------------------------------------------
+
+def check_send_policy(interaction, policy, cap: ChannelCapability) -> SendDecision:
+    """
+    Pre-send policy gate, shared by MockAdapter and every real adapter.
+
+    Order matters: platform capability first (a hard wall), then platform
+    reply window, then our own quiet hours.
+    """
+    # 1. Hard platform wall — e.g. LinkedIn offers no commercial DM API.
+    if interaction.kind == "message" and not cap.supports_dm:
+        return SendDecision(
+            allowed=False,
+            reason=(
+                f"{cap.label} does not provide message API access to "
+                f"third-party applications. Comments and mentions only."
+            ),
+        )
+
+    # 2. Platform reply window (e.g. Meta's 24h customer-service window).
+    if cap.reply_window_hours and interaction.kind == "message":
+        age = timezone.now() - interaction.received_at
+        if age > timedelta(hours=cap.reply_window_hours):
+            return SendDecision(
+                allowed=False,
+                requires_template=True,
+                reason=(
+                    f"Outside {cap.label}'s "
+                    f"{cap.reply_window_hours}h reply window. "
+                    f"An approved template is required."
+                ),
+            )
+
+    # 3. Our own quiet hours (BR-03).
+    #
+    # Deliberately scoped to PROACTIVE outbound only. Quiet hours exist to
+    # stop businesses pushing marketing at night — not to stop them
+    # answering a customer who just asked a question. Replying to a live
+    # enquiry at 23:00 is good service; blocking it would manufacture the
+    # very attention leak this product exists to remove.
+    #
+    # A reply is "reactive" if we are still inside the platform's reply
+    # window, i.e. the customer contacted us recently.
+    if policy and interaction.kind == "message":
+        window = cap.reply_window_hours or 24
+        is_reactive = (timezone.now() - interaction.received_at) <= timedelta(hours=window)
+        if not is_reactive:
+            decision = policy.check_quiet_hours()
+            if not decision.allowed:
+                return decision
+
+    return SendDecision(allowed=True)

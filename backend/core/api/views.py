@@ -17,16 +17,20 @@ import statistics
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Min, Q
+from django.http import HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from core.adapters.base import CAPABILITIES, capability
-from core.adapters.registry import get_adapter, get_policy
+from core.adapters.registry import get_adapter, get_policy, is_live
+from core.adapters.whatsapp import WhatsAppConfig
+from core.adapters.whatsapp import verify_webhook_signature as verify_whatsapp_signature
 from core.billing.monnify import verify_webhook_signature
 from core.billing.services import SubscriptionService, process_transaction_webhook
 from core import outbound as outbound_service
+from core.oauth.providers import PROVIDERS
 from core.models import (
     Channel, ChannelConnection, Draft, Interaction, InteractionKind,
     InteractionStatus, Metric, OutboundMessage, OutboundStatus, Post,
@@ -37,8 +41,13 @@ from core.models import (
 logger = logging.getLogger(__name__)
 
 
-def _tenant():
-    """Single-tenant demo resolution. Production reads this from auth."""
+def _tenant(request=None):
+    """Resolve the acting tenant from the signed-in user's profile."""
+    user = getattr(request, "user", None) if request is not None else None
+    if user is not None and user.is_authenticated:
+        profile = getattr(user, "profile", None)
+        if profile and profile.tenant:
+            return profile.tenant
     return Tenant.objects.first()
 
 
@@ -100,7 +109,7 @@ def _serialize_interaction(i: Interaction) -> dict:
 @api_view(["GET"])
 def channels(request):
     """Channel list with real capability constraints — drives the UI tabs."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     connections = {c.channel: c for c in ChannelConnection.objects.filter(tenant=tenant)}
     out = []
     for channel_value, cap in CAPABILITIES.items():
@@ -109,11 +118,17 @@ def channels(request):
             tenant=tenant, channel=channel_value,
             status__in=UNANSWERED_STATUSES, is_outbound=False,
         ).count()
+        provider = PROVIDERS.get(channel_value)
         out.append({
             "channel": channel_value,
             "label": cap.label,
-            "connected": conn is not None,
-            "is_mock": conn.is_mock if conn else False,
+            "connected": conn is not None and conn.status != "disconnected",
+            "is_mock": not is_live(channel_value),
+            "is_live": is_live(channel_value),
+            # Whether a real account can be linked via OAuth right now — the
+            # Settings UI uses this to pick "Connect real account" vs the
+            # instant mock-connect demo path.
+            "oauth_configured": provider is not None and provider.is_configured(),
             "handle": conn.handle if conn else "",
             "supports_dm": cap.supports_dm,
             "supports_comments": cap.supports_comments,
@@ -139,7 +154,7 @@ def attention(request):
     Answers the question the whole product exists for: who is waiting, for
     how long, and which platform is being neglected?
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     unanswered_qs = Interaction.objects.filter(
         tenant=tenant, status__in=UNANSWERED_STATUSES, is_outbound=False,
     )
@@ -226,7 +241,7 @@ def inbox(request):
     This single endpoint powers Messages, Comments and Reviews — the tab
     strip is a filter, exactly as described in the PRD.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     channel = request.GET.get("channel", "all")
     kind = request.GET.get("kind", "message")
     unanswered_only = request.GET.get("unanswered") == "true"
@@ -254,7 +269,7 @@ def inbox(request):
 @api_view(["GET"])
 def thread(request, interaction_id):
     """Full conversation view for one interaction."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     try:
         target = Interaction.objects.select_related("draft").get(
             id=interaction_id, tenant=tenant
@@ -308,7 +323,7 @@ def approve_draft(request, interaction_id):
     Nothing reaches a customer without passing through here. On approval we
     check the platform policy, then send natively via the adapter.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     decision = request.data.get("decision", "approve")
     final_text = request.data.get("text", "")
 
@@ -408,7 +423,7 @@ def outbound(request):
     synchronously so an online send lands immediately. If that attempt fails
     (no network / platform unreachable) it stays queued and the worker retries.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
 
     if request.method == "GET":
         qs = OutboundMessage.objects.filter(tenant=tenant)
@@ -454,7 +469,7 @@ def outbound_process(request):
     Drain due queued messages. The client calls this when it comes back online
     to flush anything it buffered; the worker command calls the same code path.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     summary = outbound_service.process_due(tenant)
     return Response(summary)
 
@@ -465,7 +480,7 @@ def outbound_process(request):
 
 @api_view(["GET", "POST"])
 def posts(request):
-    tenant = _tenant()
+    tenant = _tenant(request)
 
     if request.method == "POST":
         body = request.data.get("body", "")
@@ -527,7 +542,7 @@ def posts(request):
 @api_view(["GET"])
 def analytics(request):
     """Per-channel metrics plus the response-equity view (our differentiator)."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     channel = request.GET.get("channel", "all")
 
     qs = Metric.objects.filter(tenant=tenant)
@@ -565,7 +580,7 @@ def analytics(request):
 
 @api_view(["GET"])
 def subscription(request):
-    tenant = _tenant()
+    tenant = _tenant(request)
     service = SubscriptionService(tenant)
     sub = service.subscription
     days_left = None
@@ -599,7 +614,7 @@ def checkout(request):
     Start a Monnify subscription payment.
     Returns a checkoutUrl the client redirects to (or hands to the SDK).
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     tier = request.data.get("tier")
     if tier not in TIER_PRICING_NGN:
         return Response({"error": "invalid tier"}, status=400)
@@ -665,6 +680,85 @@ def monnify_webhook(request):
 def _json_response(data: dict, status: int):
     from django.http import JsonResponse
     return JsonResponse(data, status=status)
+
+
+@csrf_exempt
+def whatsapp_webhook(request):
+    """
+    WhatsApp Cloud API webhook. Register this URL in Meta's App Dashboard
+    under WhatsApp -> Configuration -> Webhook, subscribed to the `messages`
+    field.
+
+    Meta verifies the URL with a GET handshake (hub.mode/hub.verify_token/
+    hub.challenge) before it will deliver anything, then POSTs events signed
+    with X-Hub-Signature-256. Same discipline as monnify_webhook: verify,
+    return fast, process after, never let a processing error cause the
+    provider to retry into a poison loop.
+    """
+    if request.method == "GET":
+        mode = request.GET.get("hub.mode")
+        token = request.GET.get("hub.verify_token")
+        challenge = request.GET.get("hub.challenge", "")
+        if mode == "subscribe" and token == WhatsAppConfig.VERIFY_TOKEN:
+            return HttpResponse(challenge, content_type="text/plain")
+        return HttpResponse(status=403)
+
+    if request.method != "POST":
+        return _json_response({"error": "method not allowed"}, 405)
+
+    raw_body = request.body
+    signature = request.headers.get("X-Hub-Signature-256", "")
+
+    from django.conf import settings
+    if not verify_whatsapp_signature(raw_body, signature):
+        if not settings.DEBUG:
+            logger.warning("Rejected WhatsApp webhook: invalid signature")
+            return _json_response({"error": "invalid signature"}, 401)
+        logger.warning("DEBUG: accepting unsigned WhatsApp webhook (demo mode)")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return _json_response({"error": "invalid json"}, 400)
+
+    try:
+        tenant = _tenant()
+        connection = ChannelConnection.objects.filter(
+            tenant=tenant, channel=Channel.WHATSAPP
+        ).first()
+        if connection is None:
+            logger.warning("WhatsApp webhook received with no ChannelConnection configured")
+            return _json_response({"received": True, "processed": False}, 200)
+
+        adapter = get_adapter(connection)
+        normalized = adapter.parse_inbound(payload)
+        for item in normalized:
+            Interaction.objects.update_or_create(
+                channel=item.channel, external_id=item.external_id,
+                defaults={
+                    "tenant": tenant,
+                    "kind": item.kind,
+                    "thread_id": item.thread_id,
+                    "parent_ref": item.parent_ref,
+                    "permalink": item.permalink,
+                    "author_handle": item.author_handle,
+                    "author_display_name": item.author_display_name,
+                    "author_external_id": item.author_external_id,
+                    "author_avatar_url": item.author_avatar_url,
+                    "body": item.body,
+                    "media": item.media,
+                    "rating": item.rating,
+                    "received_at": item.received_at,
+                    "is_outbound": item.is_outbound,
+                },
+            )
+        connection.last_synced_at = timezone.now()
+        connection.save(update_fields=["last_synced_at"])
+    except Exception:
+        logger.exception("WhatsApp webhook processing failed")
+        return _json_response({"received": True, "processed": False}, 200)
+
+    return _json_response({"received": True, "processed": True}, 200)
 
 
 @api_view(["POST"])

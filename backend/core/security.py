@@ -19,6 +19,32 @@ import os
 from rest_framework import authentication, exceptions, permissions
 
 
+class BearerTokenAuthentication(authentication.BaseAuthentication):
+    """
+    Authenticate a user from a signed bearer token (see core/tokens.py).
+
+    Header: Authorization: Bearer <token>
+    """
+
+    def authenticate(self, request):
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return None
+        token = header[len("Bearer "):].strip()
+
+        from django.contrib.auth import get_user_model
+        from core.tokens import verify_token
+
+        uid = verify_token(token)
+        if uid is None:
+            raise exceptions.AuthenticationFailed("Invalid or expired token.")
+        try:
+            user = get_user_model().objects.get(id=uid, is_active=True)
+        except get_user_model().DoesNotExist:
+            raise exceptions.AuthenticationFailed("User not found.")
+        return (user, token)
+
+
 class ServiceAccount:
     """A non-DB principal representing an authenticated API-key caller."""
 

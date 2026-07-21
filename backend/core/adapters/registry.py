@@ -6,10 +6,17 @@ Review clears, register MetaAdapter for the Meta channels; the pipeline,
 API and UI are untouched.
 """
 
+import logging
+import os
+
 from django.utils import timezone
 
 from core.adapters.base import SendDecision
 from core.adapters.mock import MockAdapter
+from core.adapters.whatsapp import WhatsAppAdapter, WhatsAppConfig
+from core.models import Channel
+
+logger = logging.getLogger(__name__)
 
 
 class NGCompliancePolicy:
@@ -42,19 +49,56 @@ class NGCompliancePolicy:
 
 #: Production adapters register here as their approvals land.
 #: e.g. {Channel.INSTAGRAM: MetaAdapter, Channel.X: XAdapter}
-ADAPTER_REGISTRY: dict = {}
+ADAPTER_REGISTRY: dict = {
+    Channel.WHATSAPP: WhatsAppAdapter,
+}
+
+#: Config objects (with an is_configured() classmethod) per channel. A channel
+#: only goes live if its credentials are actually present.
+ADAPTER_CONFIGS: dict = {
+    Channel.WHATSAPP: WhatsAppConfig,
+}
+
+
+def _live_channels() -> set:
+    """Channels the operator has switched to live via LIVE_CHANNELS in .env.
+
+    Comma-separated channel keys, e.g. LIVE_CHANNELS=whatsapp,instagram.
+    Empty (default) means every channel runs on the mock adapter.
+    """
+    raw = os.environ.get("LIVE_CHANNELS", "")
+    return {c.strip().lower() for c in raw.split(",") if c.strip()}
+
+
+def _configured(channel: str) -> bool:
+    cfg = ADAPTER_CONFIGS.get(channel)
+    return cfg is None or cfg.is_configured()
+
+
+def is_live(channel: str) -> bool:
+    """A channel is live only if it's opted in via .env, has a real adapter
+    registered, and that adapter's credentials are configured."""
+    return channel in _live_channels() and channel in ADAPTER_REGISTRY and _configured(channel)
 
 
 def get_adapter(connection):
-    """Resolve the adapter for a channel connection."""
-    if connection.is_mock:
-        return MockAdapter(connection)
-    adapter_cls = ADAPTER_REGISTRY.get(connection.channel)
-    if adapter_cls is None:
-        # No production adapter registered yet — fall back to mock so the
-        # pipeline stays exercisable end-to-end.
-        return MockAdapter(connection)
-    return adapter_cls(connection)
+    """
+    Resolve the adapter for a channel connection.
+
+    Mock vs live is controlled by .env (LIVE_CHANNELS) — not by any per-row DB
+    flag — so flipping a channel live is a config change, nothing else. If a
+    channel is opted in but its credentials aren't configured yet, it safely
+    falls back to the mock adapter so the pipeline stays exercisable.
+    """
+    channel = connection.channel
+    if is_live(channel):
+        return ADAPTER_REGISTRY[channel](connection)
+    if channel in _live_channels() and not _configured(channel):
+        logger.warning(
+            "LIVE_CHANNELS includes %s but its credentials are incomplete — using mock.",
+            channel,
+        )
+    return MockAdapter(connection)
 
 
 def get_policy(tenant):
