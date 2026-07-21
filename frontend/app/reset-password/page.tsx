@@ -23,7 +23,7 @@ function ResetInner() {
     setLoading(true);
     try {
       await auth.confirmReset(uid, token, password);
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reset failed");
       setLoading(false);

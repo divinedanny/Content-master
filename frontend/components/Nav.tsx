@@ -10,7 +10,7 @@ interface NavItem {
 }
 
 const ITEMS: NavItem[] = [
-  { href: "/", label: "Home", icon: <HomeIcon /> },
+  { href: "/dashboard", label: "Home", icon: <HomeIcon /> },
   { href: "/messages", label: "Messages", icon: <ChatIcon /> },
   { href: "/comments", label: "Comments", icon: <CommentIcon /> },
   { href: "/mentions", label: "Mentions", icon: <MentionIcon /> },

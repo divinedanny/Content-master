@@ -7,12 +7,19 @@ import { AppShell } from "./AppShell";
 
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
 
-// Gates the whole app: auth routes render bare; everything else requires a
+// Public routes render without the app chrome and never require a session.
+// "/" is the public company/landing page; the app lives behind auth.
+function isPublicRoute(pathname: string) {
+  return pathname === "/" || AUTH_ROUTES.some((p) => pathname.startsWith(p));
+}
+
+// Gates the whole app: public routes render bare; everything else requires a
 // signed-in user (redirect to /login otherwise).
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
+  const isPublic = isPublicRoute(pathname);
 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
@@ -30,19 +37,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Redirect unauthenticated users off protected routes.
+  // Redirect unauthenticated users off protected routes, and signed-in users
+  // away from the auth pages (to the dashboard).
   useEffect(() => {
     if (!ready) return;
-    if (!isAuthRoute && !auth.getToken()) {
+    if (!isPublic && !auth.getToken()) {
       router.replace("/login");
     }
     if (isAuthRoute && auth.getToken() && user) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
-  }, [ready, isAuthRoute, user, router]);
+  }, [ready, isAuthRoute, isPublic, user, router]);
 
-  // Auth pages render without the app chrome.
-  if (isAuthRoute) return <>{children}</>;
+  // Public pages (landing + auth) render without the app chrome.
+  if (isPublic) return <>{children}</>;
 
   // Protected pages: wait for the auth check, then render the shell.
   if (!ready || !user) {

@@ -83,7 +83,7 @@ function ProfileMenu({ user }: { user: AuthUser }) {
           <button
             onClick={() => {
               auth.logout().finally(() => {
-                window.location.href = "/login";
+                window.location.href = "/";
               });
             }}
             className="block w-full px-4 py-2.5 text-left text-sm text-rose-300 hover:bg-rose-500/10"
