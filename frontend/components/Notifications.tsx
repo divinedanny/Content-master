@@ -156,7 +156,7 @@ export function NotificationsBell() {
         aria-label="Notifications"
         className={`relative flex h-10 w-10 items-center justify-center rounded-xl border transition ${
           open
-            ? "border-accent/40 bg-accent/12 text-white"
+            ? "border-accent/40 bg-accent/12 text-accent-soft"
             : "border-white/[0.08] text-slate-300 hover:border-white/15 hover:text-white"
         }`}
       >
@@ -165,7 +165,7 @@ export function NotificationsBell() {
           <path d="M13.7 21a2 2 0 0 1-3.4 0" strokeLinecap="round" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex min-w-[1.15rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-[0_0_0_2px_#0e1420]">
+          <span className="absolute -right-1 -top-1 flex min-w-[1.15rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-[#fff] shadow-[0_0_0_2px_rgb(var(--ink-900))]">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -212,7 +212,7 @@ export function NotificationsBell() {
                     <div className="relative">
                       <ChannelBadge channel={n.channel} size={36} />
                       {isUnread && (
-                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-400 shadow-[0_0_0_2px_#131a29]" />
+                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-400 shadow-[0_0_0_2px_rgb(var(--ink-850))]" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

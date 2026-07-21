@@ -26,7 +26,7 @@ export default function LandingPage() {
             {signedIn ? (
               <Link
                 href="/dashboard"
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow"
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow"
               >
                 Go to dashboard
               </Link>
@@ -40,7 +40,7 @@ export default function LandingPage() {
                 </Link>
                 <Link
                   href="/register"
-                  className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow"
+                  className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow"
                 >
                   Get started
                 </Link>
@@ -69,7 +69,7 @@ export default function LandingPage() {
           <div className="animate-fade-up mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href={primaryHref}
-              className="w-full rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow sm:w-auto"
+              className="w-full rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow sm:w-auto"
             >
               {primaryLabel} →
             </Link>
@@ -148,7 +148,7 @@ export default function LandingPage() {
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href={primaryHref}
-              className="w-full rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow sm:w-auto"
+              className="w-full rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow sm:w-auto"
             >
               {primaryLabel} →
             </Link>

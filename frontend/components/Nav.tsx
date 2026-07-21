@@ -38,7 +38,7 @@ export function Sidebar() {
               href={item.href}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(91,140,255,0.35)]"
+                  ? "bg-accent/16 text-accent-soft shadow-[inset_0_0_0_1px_rgba(91,140,255,0.35)]"
                   : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
               }`}
             >

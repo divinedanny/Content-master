@@ -42,7 +42,7 @@ export function Field({
       </span>
       <input
         {...props}
-        className="w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+        className="w-full rounded-xl border border-white/10 bg-field px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
       />
     </label>
   );
@@ -59,7 +59,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={loading}
-      className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
+      className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
     >
       {loading ? "Please wait…" : children}
     </button>

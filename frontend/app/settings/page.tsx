@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner, StatusPill } from "@/components/ui";
 import { naira } from "@/lib/format";
 import { auth } from "@/lib/auth";
+import { AppearanceSettings } from "@/components/AppearanceSettings";
 
 export default function SettingsPage() {
   return (
@@ -18,6 +19,7 @@ export default function SettingsPage() {
         subtitle="Account, channel connections, AI brand voice, notifications and billing."
       />
       <Account />
+      <AppearanceSettings />
       <BrandVoice />
       <Notifications />
       <Billing />
@@ -131,7 +133,7 @@ function BrandVoice() {
           value={settings.brand_voice}
           onChange={(e) => setSettings({ ...settings, brand_voice: e.target.value })}
           rows={4}
-          className="w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+          className="w-full resize-none rounded-xl border border-white/10 bg-field p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
           placeholder="e.g. Warm, professional Nigerian customer service. Never promise a price without confirming."
         />
       </Labeled>
@@ -318,7 +320,7 @@ function Billing() {
               }`}
             >
               {highlight && (
-                <span className="absolute -top-2.5 left-5 chip bg-accent px-2.5 text-[11px] text-white">
+                <span className="absolute -top-2.5 left-5 chip bg-accent px-2.5 text-[11px] text-[#fff]">
                   Recommended
                 </span>
               )}
@@ -344,7 +346,7 @@ function Billing() {
                   current
                     ? "border border-white/10 text-slate-500"
                     : highlight
-                    ? "bg-accent text-white shadow-glow hover:bg-accent-glow"
+                    ? "bg-accent text-[#fff] shadow-glow hover:bg-accent-glow"
                     : "border border-white/10 text-white hover:bg-white/[0.06]"
                 }`}
               >
@@ -383,7 +385,7 @@ function MonnifyCheckout({
       <div className="panel w-full max-w-md animate-fade-up overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-accent text-xs font-bold text-white">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-accent text-xs font-bold text-[#fff]">
               M
             </div>
             <span className="font-semibold text-white">Monnify checkout</span>
@@ -396,7 +398,7 @@ function MonnifyCheckout({
           </button>
         </div>
         <div className="space-y-4 p-5">
-          <div className="rounded-xl bg-black/25 p-4">
+          <div className="rounded-xl bg-field p-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400">Command Centre — {checkout.tier} (monthly)</span>
               <span className="text-lg font-bold text-white">{naira(checkout.amount_ngn)}</span>
@@ -425,7 +427,7 @@ function MonnifyCheckout({
           <button
             onClick={onPay}
             disabled={busy}
-            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:opacity-50"
+            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-[#fff] shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:opacity-50"
           >
             {busy
               ? "Confirming payment…"
@@ -521,7 +523,7 @@ function Channels() {
                     className={`mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
                       c.connected
                         ? "border border-white/10 text-slate-300 hover:border-rose-500/40 hover:text-rose-300"
-                        : "bg-accent/90 text-white hover:bg-accent"
+                        : "bg-accent/90 text-[#fff] hover:bg-accent"
                     }`}
                   >
                     {busy === c.channel ? "…" : c.connected ? "Disconnect" : "Connect"}
@@ -583,7 +585,7 @@ function Input({
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+      className="w-full rounded-xl border border-white/10 bg-field px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
     />
   );
 }
@@ -601,7 +603,7 @@ function SaveButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
+      className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>

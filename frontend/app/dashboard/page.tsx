@@ -42,7 +42,7 @@ export default function DashboardPage() {
       >
         <Link
           href="/messages"
-          className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow"
+          className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow"
         >
           Clear the backlog →
         </Link>
@@ -243,7 +243,7 @@ function StatCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-black/20 p-3">
+    <div className="rounded-xl bg-field p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-xl font-bold text-white">{value}</div>
     </div>
@@ -256,7 +256,7 @@ function BackendError({ message }: { message: string }) {
       <div className="mb-3 text-3xl">🔌</div>
       <h2 className="text-lg font-semibold text-white">Backend unreachable</h2>
       <p className="mt-2 text-sm text-slate-400">{message}</p>
-      <pre className="mt-4 overflow-x-auto rounded-xl bg-black/40 p-3 text-left text-xs text-slate-300">
+      <pre className="mt-4 overflow-x-auto rounded-xl bg-field p-3 text-left text-xs text-slate-300">
 {`cd backend
 python manage.py migrate && python manage.py seed_demo
 python manage.py runserver 8000`}

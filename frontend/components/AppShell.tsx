@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sidebar, MobileNav, Brand } from "@/components/Nav";
 import { NotificationsBell } from "@/components/Notifications";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { OutboxIndicator, ConnectionBanner } from "@/components/OutboxStatus";
 import { auth, type AuthUser } from "@/lib/auth";
 
@@ -20,6 +21,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </div>
           <div className="flex items-center gap-2.5">
             <OutboxIndicator />
+            <ThemeToggle />
             <NotificationsBell />
             <ProfileMenu user={user} />
           </div>
@@ -59,7 +61,7 @@ function ProfileMenu({ user }: { user: AuthUser }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent to-instagram text-sm font-bold text-white ring-2 ring-transparent transition hover:ring-white/20"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent to-instagram text-sm font-bold text-[#fff] ring-2 ring-transparent transition hover:ring-white/20"
         aria-label="Profile menu"
       >
         {initials(user.name)}
