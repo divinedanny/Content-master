@@ -10,6 +10,8 @@ from django.utils import timezone
 
 from core.adapters.base import SendDecision
 from core.adapters.mock import MockAdapter
+from core.adapters.whatsapp import WhatsAppAdapter
+from core.models import Channel
 
 
 class NGCompliancePolicy:
@@ -42,7 +44,9 @@ class NGCompliancePolicy:
 
 #: Production adapters register here as their approvals land.
 #: e.g. {Channel.INSTAGRAM: MetaAdapter, Channel.X: XAdapter}
-ADAPTER_REGISTRY: dict = {}
+ADAPTER_REGISTRY: dict = {
+    Channel.WHATSAPP: WhatsAppAdapter,
+}
 
 
 def get_adapter(connection):

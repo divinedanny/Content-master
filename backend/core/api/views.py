@@ -17,6 +17,7 @@ import statistics
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Min, Q
+from django.http import HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
@@ -24,6 +25,8 @@ from rest_framework.response import Response
 
 from core.adapters.base import CAPABILITIES, capability
 from core.adapters.registry import get_adapter, get_policy
+from core.adapters.whatsapp import WhatsAppConfig
+from core.adapters.whatsapp import verify_webhook_signature as verify_whatsapp_signature
 from core.billing.monnify import verify_webhook_signature
 from core.billing.services import SubscriptionService, process_transaction_webhook
 from core import outbound as outbound_service
@@ -670,6 +673,85 @@ def monnify_webhook(request):
 def _json_response(data: dict, status: int):
     from django.http import JsonResponse
     return JsonResponse(data, status=status)
+
+
+@csrf_exempt
+def whatsapp_webhook(request):
+    """
+    WhatsApp Cloud API webhook. Register this URL in Meta's App Dashboard
+    under WhatsApp -> Configuration -> Webhook, subscribed to the `messages`
+    field.
+
+    Meta verifies the URL with a GET handshake (hub.mode/hub.verify_token/
+    hub.challenge) before it will deliver anything, then POSTs events signed
+    with X-Hub-Signature-256. Same discipline as monnify_webhook: verify,
+    return fast, process after, never let a processing error cause the
+    provider to retry into a poison loop.
+    """
+    if request.method == "GET":
+        mode = request.GET.get("hub.mode")
+        token = request.GET.get("hub.verify_token")
+        challenge = request.GET.get("hub.challenge", "")
+        if mode == "subscribe" and token == WhatsAppConfig.VERIFY_TOKEN:
+            return HttpResponse(challenge, content_type="text/plain")
+        return HttpResponse(status=403)
+
+    if request.method != "POST":
+        return _json_response({"error": "method not allowed"}, 405)
+
+    raw_body = request.body
+    signature = request.headers.get("X-Hub-Signature-256", "")
+
+    from django.conf import settings
+    if not verify_whatsapp_signature(raw_body, signature):
+        if not settings.DEBUG:
+            logger.warning("Rejected WhatsApp webhook: invalid signature")
+            return _json_response({"error": "invalid signature"}, 401)
+        logger.warning("DEBUG: accepting unsigned WhatsApp webhook (demo mode)")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return _json_response({"error": "invalid json"}, 400)
+
+    try:
+        tenant = _tenant()
+        connection = ChannelConnection.objects.filter(
+            tenant=tenant, channel=Channel.WHATSAPP
+        ).first()
+        if connection is None:
+            logger.warning("WhatsApp webhook received with no ChannelConnection configured")
+            return _json_response({"received": True, "processed": False}, 200)
+
+        adapter = get_adapter(connection)
+        normalized = adapter.parse_inbound(payload)
+        for item in normalized:
+            Interaction.objects.update_or_create(
+                channel=item.channel, external_id=item.external_id,
+                defaults={
+                    "tenant": tenant,
+                    "kind": item.kind,
+                    "thread_id": item.thread_id,
+                    "parent_ref": item.parent_ref,
+                    "permalink": item.permalink,
+                    "author_handle": item.author_handle,
+                    "author_display_name": item.author_display_name,
+                    "author_external_id": item.author_external_id,
+                    "author_avatar_url": item.author_avatar_url,
+                    "body": item.body,
+                    "media": item.media,
+                    "rating": item.rating,
+                    "received_at": item.received_at,
+                    "is_outbound": item.is_outbound,
+                },
+            )
+        connection.last_synced_at = timezone.now()
+        connection.save(update_fields=["last_synced_at"])
+    except Exception:
+        logger.exception("WhatsApp webhook processing failed")
+        return _json_response({"received": True, "processed": False}, 200)
+
+    return _json_response({"received": True, "processed": True}, 200)
 
 
 @api_view(["POST"])
