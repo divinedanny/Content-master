@@ -120,6 +120,20 @@ export const api = {
     post<{ channel: string; connected: boolean }>(`/api/channels/${channel}/connect/`, {}),
   disconnectChannel: (channel: string) =>
     post<{ channel: string; connected: boolean }>(`/api/channels/${channel}/disconnect/`, {}),
+  // Returns the provider's authorize URL; the caller navigates the browser
+  // there directly (window.location.href) rather than fetching it — the
+  // OAuth dance is a real cross-site redirect, not an API call.
+  startOAuth: async (channel: string) => {
+    const res = await fetch(`${BASE}/api/oauth/${channel}/start/`, {
+      headers: { ...auth.authHeader() },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      handleAuthFailure(res.status);
+      return { __status: res.status, ...data } as { authorize_url?: string; error?: string; __status?: number };
+    }
+    return data as { authorize_url?: string; error?: string; __status?: number };
+  },
 
   // -- account --
   updateProfile: (body: { name?: string; email?: string }) =>

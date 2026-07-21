@@ -466,16 +466,57 @@ function Feature({ children }: { children: React.ReactNode }) {
 function Channels() {
   const [channels, setChannels] = useState<ChannelInfo[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
 
   const load = () => api.channels().then(setChannels);
   useEffect(() => {
     load();
   }, []);
 
+  // Land back here after an OAuth round trip (see core/oauth/views.py's
+  // final redirect) and surface how it went, once.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("oauth_error");
+    if (connected) {
+      setBanner({ tone: "good", text: `Connected your real ${connected} account.` });
+      load();
+    } else if (oauthError) {
+      setBanner({ tone: "bad", text: `Couldn't connect: ${oauthError.replace(/_/g, " ")}.` });
+    }
+    if (connected || oauthError) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connected");
+      url.searchParams.delete("oauth_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
+
   async function toggle(c: ChannelInfo) {
+    if (c.connected) {
+      setBusy(c.channel);
+      await api.disconnectChannel(c.channel);
+      await load();
+      setBusy(null);
+      return;
+    }
+    // A real, configured provider connects the user's actual account via
+    // OAuth (a full browser redirect); everything else falls back to the
+    // instant mock connect so the demo still works with no setup.
+    if (c.oauth_configured) {
+      setBusy(c.channel);
+      const res = await api.startOAuth(c.channel);
+      if (res.authorize_url) {
+        window.location.href = res.authorize_url;
+        return; // navigating away — no need to clear busy
+      }
+      setBanner({ tone: "bad", text: res.error || "Could not start the connection." });
+      setBusy(null);
+      return;
+    }
     setBusy(c.channel);
-    if (c.connected) await api.disconnectChannel(c.channel);
-    else await api.connectChannel(c.channel);
+    await api.connectChannel(c.channel);
     await load();
     setBusy(null);
   }
@@ -485,9 +526,21 @@ function Channels() {
       <div>
         <h2 className="text-lg font-semibold text-white">Channel connections</h2>
         <p className="text-sm text-slate-500">
-          Connect or disconnect a platform. What each one actually permits is encoded, not hidden.
+          Connect your real account where it's configured; otherwise a demo connection stands in.
+          What each platform actually permits is encoded, not hidden.
         </p>
       </div>
+      {banner && (
+        <div
+          className={`rounded-xl border px-4 py-2.5 text-sm ${
+            banner.tone === "good"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+          }`}
+        >
+          {banner.text}
+        </div>
+      )}
       {!channels ? (
         <Spinner />
       ) : (
@@ -502,7 +555,7 @@ function Channels() {
                     {c.connected ? (
                       <span className="chip bg-emerald-500/12 text-emerald-300">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                        Connected
+                        {c.is_mock ? "Connected (demo)" : "Connected"}
                       </span>
                     ) : (
                       <span className="chip bg-slate-500/12 text-slate-400">Not connected</span>
@@ -512,6 +565,15 @@ function Channels() {
                   <p className="mt-2 text-xs leading-relaxed text-slate-400">
                     {cleanNote(c.constraint_note)}
                   </p>
+                  {!c.connected && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {c.oauth_configured
+                        ? "Connects your real account."
+                        : c.channel === "whatsapp"
+                        ? "Uses the WhatsApp Cloud API token in .env, not OAuth."
+                        : "No real account configured — connects a demo account instead."}
+                    </p>
+                  )}
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <Cap ok={c.supports_dm} label="DMs" />
                     <Cap ok={c.supports_comments} label="Comments" />
@@ -526,7 +588,13 @@ function Channels() {
                         : "bg-accent/90 text-[#fff] hover:bg-accent"
                     }`}
                   >
-                    {busy === c.channel ? "…" : c.connected ? "Disconnect" : "Connect"}
+                    {busy === c.channel
+                      ? "…"
+                      : c.connected
+                      ? "Disconnect"
+                      : c.oauth_configured
+                      ? "Connect account"
+                      : "Connect"}
                   </button>
                 </div>
               </div>

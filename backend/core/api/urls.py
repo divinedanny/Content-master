@@ -2,6 +2,7 @@
 from django.urls import path
 
 from core.api import auth_views, settings_views, views
+from core.oauth import views as oauth_views
 
 urlpatterns = [
     # -- auth --
@@ -18,6 +19,9 @@ urlpatterns = [
     path("settings/notifications/", settings_views.notification_settings, name="notification_settings"),
     path("channels/<str:channel>/connect/", settings_views.channel_connect, name="channel_connect"),
     path("channels/<str:channel>/disconnect/", settings_views.channel_disconnect, name="channel_disconnect"),
+    # -- oauth: connect a tenant's real account on a platform --
+    path("oauth/<str:channel>/start/", oauth_views.oauth_start, name="oauth_start"),
+    path("oauth/<str:channel>/callback/", oauth_views.oauth_callback, name="oauth_callback"),
 ]
 
 urlpatterns += [

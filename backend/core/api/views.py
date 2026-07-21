@@ -30,6 +30,7 @@ from core.adapters.whatsapp import verify_webhook_signature as verify_whatsapp_s
 from core.billing.monnify import verify_webhook_signature
 from core.billing.services import SubscriptionService, process_transaction_webhook
 from core import outbound as outbound_service
+from core.oauth.providers import PROVIDERS
 from core.models import (
     Channel, ChannelConnection, Draft, Interaction, InteractionKind,
     InteractionStatus, Metric, OutboundMessage, OutboundStatus, Post,
@@ -117,12 +118,17 @@ def channels(request):
             tenant=tenant, channel=channel_value,
             status__in=UNANSWERED_STATUSES, is_outbound=False,
         ).count()
+        provider = PROVIDERS.get(channel_value)
         out.append({
             "channel": channel_value,
             "label": cap.label,
             "connected": conn is not None and conn.status != "disconnected",
             "is_mock": not is_live(channel_value),
             "is_live": is_live(channel_value),
+            # Whether a real account can be linked via OAuth right now — the
+            # Settings UI uses this to pick "Connect real account" vs the
+            # instant mock-connect demo path.
+            "oauth_configured": provider is not None and provider.is_configured(),
             "handle": conn.handle if conn else "",
             "supports_dm": cap.supports_dm,
             "supports_comments": cap.supports_comments,
