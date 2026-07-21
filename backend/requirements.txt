@@ -1,0 +1,12 @@
+# Core runtime. Ranges chosen to work on Python 3.9 (Django 4.2) through
+# Python 3.12 (Django 5.2).
+Django>=4.2,<6
+djangorestframework>=3.14
+django-cors-headers>=4.0
+python-dotenv>=1.0
+requests>=2.31
+
+# --- Production extras (uncomment for a real deployment) ---
+# gunicorn>=21.2            # WSGI server
+# psycopg[binary]>=3.1      # PostgreSQL driver
+# whitenoise>=6.6           # static files

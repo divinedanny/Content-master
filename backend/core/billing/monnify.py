@@ -12,6 +12,8 @@ Credentials come from environment variables — never hardcoded, so the repo
 is safe to submit. See .env.example.
 """
 
+from __future__ import annotations
+
 import base64
 import hashlib
 import hmac

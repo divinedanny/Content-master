@@ -61,6 +61,17 @@ COMMENTS = [
     ("Location please?", "service_enquiry", Sentiment.NEUTRAL),
 ]
 
+MENTIONS = [
+    ("Just tagged @avionhub in my story — best travel agency in Lagos! 🙌", "praise", Sentiment.POSITIVE),
+    ("@avionhub can you help with a Lagos to Nairobi trip next month?", "service_enquiry", Sentiment.NEUTRAL),
+    ("Anyone used @avionhub? Thinking of booking my honeymoon with them.", "lead", Sentiment.POSITIVE),
+    ("@avionhub what are your December Dubai prices?", "price_enquiry", Sentiment.NEUTRAL),
+    ("Shoutout to @avionhub for sorting my visa so fast 🇨🇦", "praise", Sentiment.POSITIVE),
+    ("@avionhub please reach out, trying to sort a group booking with you.", "lead", Sentiment.POSITIVE),
+    ("Is @avionhub reliable? Saw their Zanzibar package ad going around.", "service_enquiry", Sentiment.NEUTRAL),
+    ("Disappointed — @avionhub still hasn't replied my mention from last week.", "complaint", Sentiment.NEGATIVE),
+]
+
 REVIEWS = [
     (5, "Booked my Dubai trip through Avion Hub. Very professional and responsive on WhatsApp. Highly recommend.", Sentiment.POSITIVE),
     (4, "Good service overall, ticket came through quickly. Only issue was the initial delay in responding.", Sentiment.POSITIVE),
@@ -226,6 +237,28 @@ class Command(BaseCommand):
                     priority=Priority.NORMAL,
                     hours_ago=random.randint(2, 60),
                     answered=random.random() < 0.35,
+                    name_pair=random.choice(NIGERIAN_NAMES),
+                )
+
+        # -- @mentions across comment-capable channels ----------------------
+        #    Instagram left more neglected to match the attention-leak story.
+        mention_profile = {
+            Channel.INSTAGRAM: {"count": 3, "answered_ratio": 0.0},
+            Channel.FACEBOOK:  {"count": 2, "answered_ratio": 0.5},
+            Channel.LINKEDIN:  {"count": 2, "answered_ratio": 0.5},
+            Channel.X:         {"count": 2, "answered_ratio": 0.5},
+        }
+        for channel, profile in mention_profile.items():
+            count = profile["count"]
+            answered_count = round(count * profile["answered_ratio"])
+            for i in range(count):
+                body, intent, sentiment = random.choice(MENTIONS)
+                make_interaction(
+                    channel=channel, kind=InteractionKind.MENTION,
+                    body=body, intent=intent, sentiment=sentiment,
+                    priority=Priority.HIGH if sentiment == Sentiment.NEGATIVE else Priority.NORMAL,
+                    hours_ago=random.randint(2, 60),
+                    answered=(i < answered_count),
                     name_pair=random.choice(NIGERIAN_NAMES),
                 )
 

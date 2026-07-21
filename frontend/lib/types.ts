@@ -50,6 +50,7 @@ export interface Interaction {
   priority: number;
   status: InteractionStatus;
   is_unanswered: boolean;
+  is_outbound?: boolean;
   first_response_seconds: number | null;
   first_response_label: string;
   draft: Draft | null;
@@ -101,9 +102,27 @@ export interface SendPolicy {
   requires_template: boolean;
 }
 
+export interface PendingOutbound {
+  id: number;
+  client_id: string;
+  channel: ChannelKey;
+  thread_id: string;
+  body: string;
+  status: "queued" | "sending" | "sent" | "failed" | "cancelled";
+  attempts: number;
+  last_error: string;
+  used_ai_draft: boolean;
+  is_pending: boolean;
+  recipient_handle: string;
+  recipient_display_name: string;
+  created_at: string;
+  sent_at: string | null;
+}
+
 export interface ThreadResponse {
   interaction: Interaction;
   messages: Interaction[];
+  pending: PendingOutbound[];
   channel: {
     channel: ChannelKey;
     label: string;

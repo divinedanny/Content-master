@@ -10,7 +10,11 @@ import type {
   ApproveResult,
 } from "./types";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+// Default to same-origin ("") so requests go through the Next.js proxy
+// (see next.config.mjs rewrites). This keeps the app on a single origin, which
+// is what lets one exposed port serve the whole app to an external tester.
+// Set NEXT_PUBLIC_API_BASE only to point the browser at a separate backend host.
+const BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });

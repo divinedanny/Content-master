@@ -5,6 +5,8 @@ Subscription state changes here and ONLY here, driven by verified Monnify
 events. The rest of the application reads Subscription.status.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
 from decimal import Decimal

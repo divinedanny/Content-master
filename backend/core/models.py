@@ -403,3 +403,92 @@ class AttentionSnapshot(TenantScopedModel):
 
     class Meta:
         ordering = ["-captured_at"]
+
+
+# ---------------------------------------------------------------------------
+# Outbound message queue
+# ---------------------------------------------------------------------------
+
+class OutboundStatus(models.TextChoices):
+    QUEUED = "queued", "Queued"          # accepted, waiting to be delivered
+    SENDING = "sending", "Sending"        # a worker is attempting delivery now
+    SENT = "sent", "Sent"                 # delivered to the platform
+    FAILED = "failed", "Failed"           # gave up after retries / policy block
+    CANCELLED = "cancelled", "Cancelled"  # withdrawn before delivery
+
+
+#: Terminal states — the queue worker will not touch these again.
+OUTBOUND_TERMINAL = [
+    OutboundStatus.SENT, OutboundStatus.FAILED, OutboundStatus.CANCELLED,
+]
+
+#: Give up after this many delivery attempts.
+OUTBOUND_MAX_ATTEMPTS = 8
+
+
+class OutboundMessage(TenantScopedModel):
+    """
+    A human-composed outbound message, durably queued before delivery.
+
+    This is what makes the app resilient to flaky networks: the owner can
+    start, continue or reply to a conversation and the message is persisted
+    immediately. A worker drains the queue with exponential backoff, so a
+    message survives 'small or no network' and goes out once a platform is
+    reachable again — nothing is lost and nothing is sent twice.
+
+    Idempotency: the client generates `client_id` (a UUID) and reuses it on
+    retries, so a message re-submitted after a dropped connection is matched
+    to the existing row instead of duplicated. UNIQUE(tenant, client_id).
+    """
+    client_id = models.CharField(
+        max_length=64,
+        help_text="Client-generated idempotency key (UUID), stable across retries.",
+    )
+    channel = models.CharField(max_length=20, choices=Channel.choices)
+    thread_id = models.CharField(max_length=200, blank=True, db_index=True)
+
+    # The inbound interaction this replies to, when continuing a conversation.
+    parent_interaction = models.ForeignKey(
+        Interaction, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="outbound_replies",
+    )
+    # For a brand-new conversation started by the owner.
+    recipient_handle = models.CharField(max_length=200, blank=True)
+    recipient_display_name = models.CharField(max_length=200, blank=True)
+
+    body = models.TextField()
+    used_ai_draft = models.BooleanField(default=False)
+
+    status = models.CharField(
+        max_length=20, choices=OutboundStatus.choices,
+        default=OutboundStatus.QUEUED,
+    )
+    attempts = models.IntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+
+    # Set once delivered.
+    external_id = models.CharField(max_length=200, blank=True)
+    interaction = models.ForeignKey(
+        Interaction, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="The outbound Interaction row created in the thread on send.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [("tenant", "client_id")]
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["tenant", "status", "next_attempt_at"]),
+            models.Index(fields=["tenant", "thread_id"]),
+        ]
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status in (OutboundStatus.QUEUED, OutboundStatus.SENDING)
+
+    def __str__(self):
+        return f"[{self.channel}] {self.status}: {self.body[:40]}"
