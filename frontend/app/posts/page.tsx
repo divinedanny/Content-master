@@ -66,7 +66,7 @@ export default function PostsPage() {
             }}
             rows={5}
             placeholder="Share an update with your customers…"
-            className="w-full resize-none rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+            className="w-full resize-none rounded-xl border border-white/10 bg-field p-4 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
           />
 
           <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-400">
@@ -117,7 +117,7 @@ export default function PostsPage() {
           <button
             onClick={publish}
             disabled={publishing || !body.trim() || targets.length === 0}
-            className="mt-5 w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
           >
             {publishing ? "Publishing…" : `Publish to ${targets.length} platform${targets.length === 1 ? "" : "s"}`}
           </button>

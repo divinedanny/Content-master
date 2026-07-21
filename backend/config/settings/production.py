@@ -109,7 +109,10 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS") or CORS_ALLOWED_O
 
 # -- DRF: enforce authentication + RBAC/ABAC, tighter throttles ------------
 
-_auth_classes = ["rest_framework.authentication.SessionAuthentication"]
+_auth_classes = [
+    "core.security.BearerTokenAuthentication",
+    "rest_framework.authentication.SessionAuthentication",
+]
 if _installed("rest_framework_simplejwt"):
     _auth_classes.insert(0, "rest_framework_simplejwt.authentication.JWTAuthentication")
     INSTALLED_APPS = [*INSTALLED_APPS, "rest_framework_simplejwt"]

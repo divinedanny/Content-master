@@ -16,7 +16,7 @@ export function NewConversationButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow"
+        className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow"
       >
         <PlusIcon /> New message
       </button>
@@ -94,7 +94,7 @@ function NewConversationModal({ onClose }: { onClose: () => void }) {
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
                   placeholder={channel === "whatsapp" ? "+234…" : "@username"}
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-xl border border-white/10 bg-field px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
                 />
               </div>
               <div>
@@ -105,7 +105,7 @@ function NewConversationModal({ onClose }: { onClose: () => void }) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Customer name"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-xl border border-white/10 bg-field px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
                 />
               </div>
             </div>
@@ -119,14 +119,14 @@ function NewConversationModal({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setBody(e.target.value)}
                 rows={4}
                 placeholder="Write your message…"
-                className="w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+                className="w-full resize-none rounded-xl border border-white/10 bg-field p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
               />
             </div>
 
             <button
               onClick={send}
               disabled={!handle.trim() || !body.trim()}
-              className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-40"
             >
               Send message
             </button>

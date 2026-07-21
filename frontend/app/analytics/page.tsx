@@ -136,16 +136,18 @@ export default function AnalyticsPage() {
                   <stop offset="100%" stopColor="#e1306c" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid stroke="rgba(100,116,139,0.18)" vertical={false} />
               <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} />
               <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={fmt} />
               <Tooltip
                 contentStyle={{
-                  background: "#18202f",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgb(var(--ink-800))",
+                  color: "rgb(var(--fg))",
+                  border: "1px solid rgba(100,116,139,0.25)",
                   borderRadius: 10,
                   fontSize: 12,
                 }}
+                labelStyle={{ color: "rgb(var(--fg))" }}
               />
               <Area type="monotone" dataKey="impressions" stroke="#e1306c" fill="url(#gImp)" strokeWidth={2} isAnimationActive={false} />
               <Area type="monotone" dataKey="reach" stroke="#5b8cff" fill="url(#gReach)" strokeWidth={2} isAnimationActive={false} />

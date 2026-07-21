@@ -120,6 +120,17 @@ export function InboxWorkspace({
     load();
   }, [load]);
 
+  // Live refresh: poll so newly received/sent messages surface without a
+  // manual reload. Silent (never blanks the list or the open conversation).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      load({ silent: true });
+      refreshCounts();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [load, refreshCounts]);
+
   const selected = useMemo(
     () => items?.find((i) => i.id === selectedId) ?? null,
     [items, selectedId]

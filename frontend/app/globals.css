@@ -7,31 +7,104 @@
     "Helvetica Neue", Arial, sans-serif;
 }
 
+/* ------------------------------------------------------------------ themes
+   Colors are RGB channels consumed by Tailwind (see tailwind.config.ts).
+   Default (:root) is the LIGHT theme; ThemeProvider stamps data-theme on
+   <html> ("light" | "dark") from the user's choice or the system setting. */
+
+:root,
+:root[data-theme="light"] {
+  --fg: 15 23 42; /* primary text (near-black) */
+  --deep: 15 23 42; /* overlays / input fills / modal scrim */
+  --slate-100: 15 23 42;
+  --slate-200: 30 41 59;
+  --slate-300: 51 65 85;
+  --slate-400: 71 85 105;
+  --slate-500: 100 116 139;
+  --slate-600: 148 163 184;
+  --ink-950: 244 247 251; /* page background */
+  --ink-900: 255 255 255;
+  --ink-850: 255 255 255; /* panels/cards */
+  --ink-800: 241 245 249;
+  --ink-700: 226 232 240;
+  --ink-600: 203 213 225;
+  --field: 237 242 249; /* inset input/textarea fill */
+  --accent: 61 111 255;
+  --accent-soft: 43 92 235;
+  --accent-glow: 61 111 255;
+  --emerald-300: 4 120 87;
+  --rose-300: 190 18 60;
+  --amber-300: 180 83 9;
+  --panel-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.06);
+  --body-bg: radial-gradient(1200px 600px at 15% -10%, rgb(61 111 255 / 0.06), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgb(225 48 108 / 0.05), transparent 55%);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --fg: 255 255 255;
+  --deep: 0 0 0;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --ink-950: 10 14 23;
+  --ink-900: 14 20 32;
+  --ink-850: 19 26 41;
+  --ink-800: 24 32 47;
+  --ink-700: 34 44 63;
+  --ink-600: 46 58 82;
+  --field: 8 12 20; /* inset input/textarea fill */
+  --accent: 91 140 255;
+  --accent-soft: 123 163 255;
+  --accent-glow: 61 111 255;
+  --emerald-300: 110 231 183;
+  --rose-300: 253 164 175;
+  --amber-300: 252 211 77;
+  --panel-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px rgb(0 0 0 / 0.35);
+  --body-bg: radial-gradient(1200px 600px at 15% -10%, rgb(61 111 255 / 0.12), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgb(225 48 108 / 0.08), transparent 55%);
+  color-scheme: dark;
+}
+
+/* High-contrast: strengthen text + borders in both themes. */
+:root[data-contrast="high"][data-theme="light"] {
+  --slate-300: 30 41 59;
+  --slate-400: 51 65 85;
+  --slate-500: 71 85 105;
+  --slate-600: 100 116 139;
+}
+:root[data-contrast="high"][data-theme="dark"] {
+  --slate-300: 226 232 240;
+  --slate-400: 203 213 225;
+  --slate-500: 148 163 184;
+  --slate-600: 100 116 139;
+}
+:root[data-contrast="high"] {
+  --border-strength: 0.18;
+}
+
 html,
 body {
-  background: #0a0e17;
-  color: #e6ebf5;
+  background: rgb(var(--ink-950));
+  color: rgb(var(--fg));
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle grid glow backdrop for the whole app */
 body {
-  background-image: radial-gradient(
-      1200px 600px at 15% -10%,
-      rgba(61, 111, 255, 0.12),
-      transparent 60%
-    ),
-    radial-gradient(900px 500px at 100% 0%, rgba(225, 48, 108, 0.08), transparent 55%);
+  background-image: var(--body-bg);
   background-attachment: fixed;
 }
 
 @layer components {
   .panel {
-    @apply rounded-2xl border border-white/[0.06] bg-ink-850/80 shadow-panel backdrop-blur;
+    @apply rounded-2xl border border-white/[0.08] bg-ink-850/80 shadow-panel backdrop-blur;
   }
   .panel-hover {
-    @apply transition-colors hover:border-white/[0.12] hover:bg-ink-800/80;
+    @apply transition-colors hover:border-white/[0.14] hover:bg-ink-800/80;
   }
   .stat-num {
     @apply text-3xl font-bold tracking-tight text-white sm:text-4xl;
@@ -50,9 +123,9 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--fg) / 0.12);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgb(var(--fg) / 0.22);
 }

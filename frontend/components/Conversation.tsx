@@ -49,6 +49,17 @@ export function Conversation({
     reload();
   }, [reload]);
 
+  // Live refresh: poll the open thread so new inbound/outbound messages appear
+  // without a manual reload. Silent — reload() keeps the current thread on
+  // screen and never clears the composer (its text is separate state).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      reload();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [reload]);
+
   // Re-render on outbox changes, and reload the thread when one of this
   // thread's messages transitions to sent (so the server bubble replaces the
   // optimistic one instead of vanishing when it's pruned).
@@ -200,7 +211,7 @@ function Bubbles({ data }: { data: ThreadResponse }) {
           <div
             className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
               b.outbound
-                ? "rounded-br-md bg-accent/90 text-white"
+                ? "rounded-br-md bg-accent/90 text-[#fff]"
                 : "rounded-bl-md bg-white/[0.06] text-slate-100"
             } ${b.status === "failed" ? "ring-1 ring-rose-400/50" : ""}`}
           >
@@ -308,12 +319,12 @@ function DmComposer({
           }}
           rows={2}
           placeholder={`Message ${data.interaction.author.display_name}…`}
-          className="max-h-40 min-h-[2.75rem] flex-1 resize-none rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+          className="max-h-40 min-h-[2.75rem] flex-1 resize-none rounded-xl border border-white/10 bg-field p-3 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
         />
         <button
           onClick={send}
           disabled={!text.trim()}
-          className="inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-40"
         >
           Send
           <SendIcon />
@@ -413,7 +424,7 @@ function ApprovalGate({
         }}
         rows={4}
         placeholder="Write a response…"
-        className="w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+        className="w-full resize-none rounded-xl border border-white/10 bg-field p-3.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
       />
       {!send_policy.allowed && (
         <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-3.5 py-2.5 text-xs text-amber-200">
@@ -436,7 +447,7 @@ function ApprovalGate({
         <button
           onClick={() => act("approve")}
           disabled={sending || !send_policy.allowed || !text.trim()}
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-[#fff] shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {sending ? "Posting…" : edited ? "Approve edit & post" : "Approve & post"}
         </button>

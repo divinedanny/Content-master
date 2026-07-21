@@ -1,24 +1,223 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, type NotifyPrefs, type TenantSettings } from "@/lib/api";
 import type { ChannelInfo, Subscription, CheckoutResult } from "@/lib/types";
 import { channelColor } from "@/lib/channels";
 import { ChannelBadge } from "@/components/ChannelIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner, StatusPill } from "@/components/ui";
 import { naira } from "@/lib/format";
+import { auth } from "@/lib/auth";
+import { AppearanceSettings } from "@/components/AppearanceSettings";
+import { launchWhatsAppEmbeddedSignup } from "@/lib/whatsappSignup";
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <PageHeader
         title="Settings"
-        subtitle="Channel connections and Naira-native subscription billing via Monnify."
+        subtitle="Account, channel connections, AI brand voice, notifications and billing."
       />
+      <Account />
+      <AppearanceSettings />
+      <BrandVoice />
+      <Notifications />
       <Billing />
       <Channels />
     </div>
+  );
+}
+
+/* --------------------------------------------------------------- Account */
+
+function Account() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+
+  useEffect(() => {
+    const u = auth.getUser();
+    if (u) {
+      setName(u.name);
+      setEmail(u.email);
+    }
+  }, []);
+
+  async function saveProfile() {
+    setMsg(null);
+    const res = await api.updateProfile({ name, email });
+    if (res.__status && res.__status >= 400) {
+      setMsg(res.error || "Could not save.");
+    } else {
+      await auth.refresh();
+      setMsg("Saved.");
+    }
+  }
+
+  async function changePw() {
+    setPwMsg(null);
+    const res = await api.changePassword(current, next);
+    if (res.__status && res.__status >= 400) {
+      setPwMsg(res.error || "Could not change password.");
+    } else {
+      if (res.token) auth.setSession(res.token, auth.getUser()!);
+      setCurrent("");
+      setNext("");
+      setPwMsg("Password changed.");
+    }
+  }
+
+  return (
+    <Section title="Account" subtitle="Your profile and sign-in details.">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Labeled label="Full name">
+          <Input value={name} onChange={setName} />
+        </Labeled>
+        <Labeled label="Email">
+          <Input value={email} onChange={setEmail} type="email" />
+        </Labeled>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={saveProfile}>Save profile</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+
+      <div className="mt-6 border-t border-white/[0.06] pt-5">
+        <div className="mb-3 text-sm font-semibold text-slate-200">Change password</div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Labeled label="Current password">
+            <Input value={current} onChange={setCurrent} type="password" />
+          </Labeled>
+          <Labeled label="New password">
+            <Input value={next} onChange={setNext} type="password" />
+          </Labeled>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <SaveButton onClick={changePw} disabled={!current || !next}>Update password</SaveButton>
+          {pwMsg && <Note text={pwMsg} />}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/* ---------------------------------------------------- Brand voice & quiet hours */
+
+function BrandVoice() {
+  const [settings, setSettings] = useState<TenantSettings | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.tenantSettings().then(setSettings).catch(() => {});
+  }, []);
+
+  if (!settings) return <Section title="Brand voice & quiet hours"><Spinner /></Section>;
+
+  async function save() {
+    setMsg(null);
+    const res = await api.saveTenantSettings(settings!);
+    if (res.__status && res.__status >= 400) setMsg("Could not save.");
+    else setMsg("Saved.");
+  }
+
+  return (
+    <Section
+      title="Brand voice & quiet hours"
+      subtitle="Guidance injected into AI drafts, and the window the outbound queue may send proactive messages."
+    >
+      <Labeled label="Brand voice / knowledge">
+        <textarea
+          value={settings.brand_voice}
+          onChange={(e) => setSettings({ ...settings, brand_voice: e.target.value })}
+          rows={4}
+          className="w-full resize-none rounded-xl border border-white/10 bg-field p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+          placeholder="e.g. Warm, professional Nigerian customer service. Never promise a price without confirming."
+        />
+      </Labeled>
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:max-w-xs">
+        <Labeled label="Quiet hours start">
+          <Input
+            type="time"
+            value={settings.quiet_hours_start}
+            onChange={(v) => setSettings({ ...settings, quiet_hours_start: v })}
+          />
+        </Labeled>
+        <Labeled label="Quiet hours end">
+          <Input
+            type="time"
+            value={settings.quiet_hours_end}
+            onChange={(v) => setSettings({ ...settings, quiet_hours_end: v })}
+          />
+        </Labeled>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={save}>Save</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------ Notifications */
+
+const NOTIF_EVENTS: { key: string; label: string }[] = [
+  { key: "new_message", label: "New direct message" },
+  { key: "mention", label: "New @mention" },
+  { key: "review", label: "New review" },
+];
+
+function Notifications() {
+  const [prefs, setPrefs] = useState<NotifyPrefs | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const u = auth.getUser();
+    if (u?.notify_prefs) setPrefs(u.notify_prefs);
+    else auth.refresh().then((x) => x?.notify_prefs && setPrefs(x.notify_prefs));
+  }, []);
+
+  if (!prefs) return <Section title="Notifications"><Spinner /></Section>;
+
+  function toggle(event: string, channel: "in_app" | "email") {
+    setPrefs((p) => ({
+      ...p!,
+      [event]: { ...p![event], [channel]: !p![event]?.[channel] },
+    }));
+  }
+
+  async function save() {
+    setMsg(null);
+    await api.saveNotifications(prefs!);
+    const u = auth.getUser();
+    if (u) auth.setUser({ ...u, notify_prefs: prefs! });
+    setMsg("Saved.");
+  }
+
+  return (
+    <Section title="Notifications" subtitle="Choose what reaches you, and where.">
+      <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 border-b border-white/[0.06] bg-white/[0.02] px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <span>Event</span>
+          <span className="text-center">In-app</span>
+          <span className="text-center">Email</span>
+        </div>
+        {NOTIF_EVENTS.map((ev) => (
+          <div key={ev.key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 px-4 py-3 text-sm">
+            <span className="text-slate-200">{ev.label}</span>
+            <Toggle on={!!prefs[ev.key]?.in_app} onClick={() => toggle(ev.key, "in_app")} />
+            <Toggle on={!!prefs[ev.key]?.email} onClick={() => toggle(ev.key, "email")} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={save}>Save preferences</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+    </Section>
   );
 }
 
@@ -122,7 +321,7 @@ function Billing() {
               }`}
             >
               {highlight && (
-                <span className="absolute -top-2.5 left-5 chip bg-accent px-2.5 text-[11px] text-white">
+                <span className="absolute -top-2.5 left-5 chip bg-accent px-2.5 text-[11px] text-[#fff]">
                   Recommended
                 </span>
               )}
@@ -148,7 +347,7 @@ function Billing() {
                   current
                     ? "border border-white/10 text-slate-500"
                     : highlight
-                    ? "bg-accent text-white shadow-glow hover:bg-accent-glow"
+                    ? "bg-accent text-[#fff] shadow-glow hover:bg-accent-glow"
                     : "border border-white/10 text-white hover:bg-white/[0.06]"
                 }`}
               >
@@ -187,7 +386,7 @@ function MonnifyCheckout({
       <div className="panel w-full max-w-md animate-fade-up overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-accent text-xs font-bold text-white">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-accent text-xs font-bold text-[#fff]">
               M
             </div>
             <span className="font-semibold text-white">Monnify checkout</span>
@@ -200,7 +399,7 @@ function MonnifyCheckout({
           </button>
         </div>
         <div className="space-y-4 p-5">
-          <div className="rounded-xl bg-black/25 p-4">
+          <div className="rounded-xl bg-field p-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400">Command Centre — {checkout.tier} (monthly)</span>
               <span className="text-lg font-bold text-white">{naira(checkout.amount_ngn)}</span>
@@ -229,7 +428,7 @@ function MonnifyCheckout({
           <button
             onClick={onPay}
             disabled={busy}
-            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:opacity-50"
+            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-[#fff] shadow-[0_6px_20px_rgba(16,185,129,0.3)] transition hover:bg-emerald-400 disabled:opacity-50"
           >
             {busy
               ? "Confirming payment…"
@@ -267,18 +466,115 @@ function Feature({ children }: { children: React.ReactNode }) {
 
 function Channels() {
   const [channels, setChannels] = useState<ChannelInfo[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
+
+  const load = () => api.channels().then(setChannels);
   useEffect(() => {
-    api.channels().then(setChannels);
+    load();
   }, []);
+
+  // Land back here after an OAuth round trip (see core/oauth/views.py's
+  // final redirect) and surface how it went, once.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("oauth_error");
+    if (connected) {
+      setBanner({ tone: "good", text: `Connected your real ${connected} account.` });
+      load();
+    } else if (oauthError) {
+      setBanner({ tone: "bad", text: `Couldn't connect: ${oauthError.replace(/_/g, " ")}.` });
+    }
+    if (connected || oauthError) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connected");
+      url.searchParams.delete("oauth_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
+
+  async function toggle(c: ChannelInfo) {
+    if (c.connected) {
+      setBusy(c.channel);
+      await api.disconnectChannel(c.channel);
+      await load();
+      setBusy(null);
+      return;
+    }
+    // WhatsApp's real-connect is a Facebook JS SDK popup (Embedded Signup),
+    // not the redirect OAuth the other providers use — it never navigates
+    // away from this page.
+    if (c.channel === "whatsapp" && c.embedded_signup_configured) {
+      const appId = process.env.NEXT_PUBLIC_WHATSAPP_APP_ID;
+      const configId = process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID;
+      if (!appId || !configId) {
+        setBanner({
+          tone: "bad",
+          text: "WhatsApp connect isn't configured in this browser build (missing NEXT_PUBLIC_WHATSAPP_APP_ID/CONFIG_ID).",
+        });
+        return;
+      }
+      setBusy(c.channel);
+      try {
+        const { code, wabaId, phoneNumberId } = await launchWhatsAppEmbeddedSignup(appId, configId);
+        const res = await api.whatsappEmbeddedSignup(code, wabaId, phoneNumberId);
+        if (res.__status && res.__status >= 400) {
+          setBanner({ tone: "bad", text: res.error || "Could not connect WhatsApp." });
+        } else {
+          setBanner({
+            tone: "good",
+            text: `Connected your real WhatsApp number${res.handle ? ` (${res.handle})` : ""}.`,
+          });
+          await load();
+        }
+      } catch (err) {
+        setBanner({ tone: "bad", text: err instanceof Error ? err.message : "Could not connect WhatsApp." });
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+    // A real, configured provider connects the user's actual account via
+    // OAuth (a full browser redirect); everything else falls back to the
+    // instant mock connect so the demo still works with no setup.
+    if (c.oauth_configured) {
+      setBusy(c.channel);
+      const res = await api.startOAuth(c.channel);
+      if (res.authorize_url) {
+        window.location.href = res.authorize_url;
+        return; // navigating away — no need to clear busy
+      }
+      setBanner({ tone: "bad", text: res.error || "Could not start the connection." });
+      setBusy(null);
+      return;
+    }
+    setBusy(c.channel);
+    await api.connectChannel(c.channel);
+    await load();
+    setBusy(null);
+  }
 
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-white">Channel connections</h2>
         <p className="text-sm text-slate-500">
-          What each platform actually permits — encoded, not hidden.
+          Connect your real account where it's configured; otherwise a demo connection stands in.
+          What each platform actually permits is encoded, not hidden.
         </p>
       </div>
+      {banner && (
+        <div
+          className={`rounded-xl border px-4 py-2.5 text-sm ${
+            banner.tone === "good"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+          }`}
+        >
+          {banner.text}
+        </div>
+      )}
       {!channels ? (
         <Spinner />
       ) : (
@@ -293,7 +589,7 @@ function Channels() {
                     {c.connected ? (
                       <span className="chip bg-emerald-500/12 text-emerald-300">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                        Connected
+                        {c.is_mock ? "Connected (demo)" : "Connected"}
                       </span>
                     ) : (
                       <span className="chip bg-slate-500/12 text-slate-400">Not connected</span>
@@ -303,11 +599,37 @@ function Channels() {
                   <p className="mt-2 text-xs leading-relaxed text-slate-400">
                     {cleanNote(c.constraint_note)}
                   </p>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {!c.connected && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {c.oauth_configured || c.embedded_signup_configured
+                        ? "Connects your real account."
+                        : c.channel === "whatsapp"
+                        ? "Ask an admin to set WHATSAPP_APP_ID/CONFIG_ID in .env to enable real connect."
+                        : "No real account configured — connects a demo account instead."}
+                    </p>
+                  )}
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <Cap ok={c.supports_dm} label="DMs" />
                     <Cap ok={c.supports_comments} label="Comments" />
                     <Cap ok={c.supports_publish} label="Publish" />
                   </div>
+                  <button
+                    onClick={() => toggle(c)}
+                    disabled={busy === c.channel}
+                    className={`mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                      c.connected
+                        ? "border border-white/10 text-slate-300 hover:border-rose-500/40 hover:text-rose-300"
+                        : "bg-accent/90 text-[#fff] hover:bg-accent"
+                    }`}
+                  >
+                    {busy === c.channel
+                      ? "…"
+                      : c.connected
+                      ? "Disconnect"
+                      : c.oauth_configured || c.embedded_signup_configured
+                      ? "Connect account"
+                      : "Connect"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -315,6 +637,97 @@ function Channels() {
         </div>
       )}
     </section>
+  );
+}
+
+/* --------------------------------------------------------- shared bits */
+
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      <div className="panel p-5">{children}</div>
+    </section>
+  );
+}
+
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Input({
+  value,
+  onChange,
+  type = "text",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-xl border border-white/10 bg-field px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+    />
+  );
+}
+
+function SaveButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-[#fff] shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function Note({ text }: { text: string }) {
+  return <span className="text-xs text-emerald-300">{text}</span>;
+}
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`mx-auto flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+        on ? "bg-accent" : "bg-white/10"
+      }`}
+      role="switch"
+      aria-checked={on}
+    >
+      <span className={`h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : ""}`} />
+    </button>
   );
 }
 

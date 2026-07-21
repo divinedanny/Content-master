@@ -142,6 +142,34 @@ class TenantScopedModel(models.Model):
         abstract = True
 
 
+DEFAULT_NOTIFY_PREFS = {
+    "new_message": {"in_app": True, "email": False},
+    "mention": {"in_app": True, "email": False},
+    "review": {"in_app": True, "email": True},
+}
+
+
+class UserProfile(models.Model):
+    """
+    Links an auth user to their tenant and holds per-user preferences.
+
+    Multi-tenant from day one: which business a signed-in user operates on is
+    resolved from here, not hardcoded.
+    """
+    user = models.OneToOneField(
+        "auth.User", on_delete=models.CASCADE, related_name="profile",
+    )
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="members",
+    )
+    notify_prefs = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Profile<{self.user.username}>"
+
+
 # ---------------------------------------------------------------------------
 # Billing (Monnify)
 # ---------------------------------------------------------------------------

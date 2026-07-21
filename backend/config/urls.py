@@ -18,4 +18,7 @@ urlpatterns = [
     # Monnify posts here. Register this URL in the Monnify dashboard under
     # Developer -> Webhook URLs -> Transaction Completion.
     path("webhooks/monnify/", views.monnify_webhook, name="monnify_webhook"),
+    # Meta posts here. Register this URL in the Meta App Dashboard under
+    # WhatsApp -> Configuration -> Webhook, subscribed to the `messages` field.
+    path("webhooks/whatsapp/", views.whatsapp_webhook, name="whatsapp_webhook"),
 ]

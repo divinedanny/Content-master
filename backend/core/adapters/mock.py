@@ -12,12 +12,9 @@ behaves honestly rather than pretending constraints don't exist.
 """
 
 import uuid
-from datetime import timedelta
-
-from django.utils import timezone
 
 from core.adapters.base import (
-    PublishResult, SendDecision, SendResult, capability,
+    PublishResult, SendDecision, SendResult, capability, check_send_policy,
 )
 from core.models import Channel
 
@@ -45,57 +42,8 @@ class MockAdapter:
     # -- outbound -----------------------------------------------------------
 
     def can_send(self, interaction, policy=None) -> SendDecision:
-        """
-        Pre-send policy gate. Mirrors production rules exactly.
-
-        Order matters: platform capability first (a hard wall), then
-        platform reply window, then our own quiet hours.
-        """
-        # 1. Hard platform wall — LinkedIn offers no commercial DM API.
-        if interaction.kind == "message" and not self.cap.supports_dm:
-            return SendDecision(
-                allowed=False,
-                reason=(
-                    f"{self.cap.label} does not provide message API access to "
-                    f"third-party applications. Comments and mentions only."
-                ),
-            )
-
-        # 2. Platform reply window (Meta's 24h customer-service window).
-        if self.cap.reply_window_hours and interaction.kind == "message":
-            age = timezone.now() - interaction.received_at
-            if age > timedelta(hours=self.cap.reply_window_hours):
-                return SendDecision(
-                    allowed=False,
-                    requires_template=True,
-                    reason=(
-                        f"Outside {self.cap.label}'s "
-                        f"{self.cap.reply_window_hours}h reply window. "
-                        f"An approved template is required."
-                    ),
-                )
-
-        # 3. Our own quiet hours (BR-03).
-        #
-        # Deliberately scoped to PROACTIVE outbound only. Quiet hours exist to
-        # stop businesses pushing marketing at night — not to stop them
-        # answering a customer who just asked a question. Replying to a live
-        # enquiry at 23:00 is good service; blocking it would manufacture the
-        # very attention leak this product exists to remove.
-        #
-        # A reply is "reactive" if we are still inside the platform's reply
-        # window, i.e. the customer contacted us recently.
-        if policy and interaction.kind == "message":
-            window = self.cap.reply_window_hours or 24
-            is_reactive = (
-                timezone.now() - interaction.received_at
-            ) <= timedelta(hours=window)
-            if not is_reactive:
-                decision = policy.check_quiet_hours()
-                if not decision.allowed:
-                    return decision
-
-        return SendDecision(allowed=True)
+        """Pre-send policy gate — shared with every real adapter, see base.check_send_policy."""
+        return check_send_policy(interaction, policy, self.cap)
 
     def send_reply(self, interaction, text: str) -> SendResult:
         """

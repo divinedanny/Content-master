@@ -12,7 +12,6 @@ from .base import REST_FRAMEWORK
 DEBUG = True
 ENVIRONMENT = "mvp"
 
-# Open API — no login needed for the demo frontend.
-REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"] = ["rest_framework.permissions.AllowAny"]
+# Auth is required (login-gated app); permissions inherit IsAuthenticated.
 # Generous throttles so local development never trips them.
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {"anon": "1000/min", "user": "2000/min"}
