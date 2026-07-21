@@ -18,28 +18,100 @@ python manage.py seed_demo
 python manage.py runserver
 ```
 
-Verify everything works:
+Verify everything works — see **Testing** below.
+
+---
+
+## Testing
+
+There's no `pytest`/`manage.py test` suite yet — verification is three
+scripts that drive the real API through Django's test `Client`, plus Django's
+own system checks. Demo data must exist first (`python manage.py seed_demo`),
+since these scripts read and mutate it.
 
 ```bash
-python verify_demo.py      # attention dashboard
-python verify_flows.py     # inbox, tab filter, approval gate, native send
-python verify_billing.py   # Monnify lifecycle + idempotency
+python manage.py check                     # settings, URLs, model integrity — no server needed
+
+python verify_demo.py                       # 1. attention dashboard: unanswered/oldest/median per channel
+python verify_flows.py                      # 2. unified inbox, per-platform filter, approval gate -> native send
+python verify_billing.py                    # 3. Monnify checkout -> webhook -> activation, and idempotent replay
 ```
+
+Each script:
+
+1. Logs in as the demo user `seed_demo` creates (`demo@avionhub.ng` /
+   `demo1234` by default — override with `DEMO_EMAIL`/`DEMO_PASSWORD` env
+   vars if you changed them) and attaches the bearer token to every request.
+   Every endpoint requires auth (`base.py`'s `DEFAULT_PERMISSION_CLASSES`),
+   so a script that skips this step gets `403`s, not real responses.
+2. Prints what it did and the API's response, so a failed assertion or a
+   wrong-looking number is visible immediately — these are read-through
+   smoke tests, not silent pass/fail.
+
+`verify_flows.py` step 4 approves a draft that may be **outside** its
+platform's 24h reply window depending on when `seed_demo` last ran (a
+`409` there with `"requires_template": true` is the send-policy gate working
+correctly, not a bug — re-run `seed_demo` to refresh the timestamps if you
+want to see a `200` instead).
+
+Re-run `python manage.py seed_demo` between test passes — `verify_billing.py`
+and `verify_flows.py` both mutate state (a subscription activates, a draft
+gets approved and sent), so results drift on repeated runs otherwise.
+
+### Testing WhatsApp Embedded Signup (the Settings "Connect account" popup)
+
+This one can't be scripted — it's a real Facebook popup — so it needs manual
+verification once `WHATSAPP_APP_ID`/`WHATSAPP_CONFIG_ID`/`WHATSAPP_APP_SECRET`
+are set in `.env` and the matching `NEXT_PUBLIC_WHATSAPP_APP_ID`/
+`NEXT_PUBLIC_WHATSAPP_CONFIG_ID` are set in `frontend/.env.local`:
+
+1. `python manage.py runserver` + `npm run dev` (frontend), signed in as any user.
+2. Settings → Channel connections → WhatsApp → **Connect account**.
+3. Complete the popup with a real WhatsApp Business number.
+4. Confirm in Settings: the card flips to "Connected" with the real phone
+   number as its handle (not "Connected (demo)").
+5. Confirm in the Django shell that the connection now carries per-tenant
+   credentials, not the shared `.env` token:
+   ```bash
+   python manage.py shell -c "
+   from core.models import ChannelConnection
+   c = ChannelConnection.objects.filter(channel='whatsapp', is_mock=False).latest('connected_at')
+   print(c.tenant, c.handle, sorted(c.oauth_tokens.keys()))"
+   ```
+   Expect `['access_token', 'phone_number_id', 'waba_id']`.
+6. Send a WhatsApp message to that number from a real phone and confirm it
+   lands in the inbox — this exercises `_whatsapp_connection_for_payload()`
+   routing the webhook to the right tenant by `phone_number_id`.
+
+### Manual API testing (curl)
+
+Useful when you want to hit one endpoint directly instead of running a whole
+verify script:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8000/api/auth/login/ \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@avionhub.ng","password":"demo1234"}' | python -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+curl -s localhost:8000/api/attention/ -H "Authorization: Bearer $TOKEN" | python -m json.tool
+```
+
+### Frontend
+
+The frontend has no automated tests either. To exercise it manually:
+`cd ../frontend && npm run dev`, then walk the golden path — register/login,
+Dashboard's attention numbers match `verify_demo.py`'s, Messages → approve a
+draft → it appears sent, Settings → connect/disconnect a channel.
 
 ---
 
 ## Monnify configuration
 
-Put your **sandbox** credentials in `.env` (never commit this file — it is
-already in `.gitignore`):
-
-```
-MONNIFY_BASE_URL=https://sandbox.monnify.com
-MONNIFY_API_KEY=...
-MONNIFY_SECRET_KEY=...
-MONNIFY_CONTRACT_CODE=...
-MONNIFY_REDIRECT_URL=http://localhost:3000/billing/callback
-```
+Put your **sandbox** credentials in `.env` (copied from `.env.example`, which
+documents every variable — WhatsApp, Monnify, and the per-platform OAuth
+apps). `.env` is already in `.gitignore`: never commit it, and never paste
+real values from it into a doc, PR description, or issue — treat every
+`ACCESS_TOKEN`/`SECRET`/`API_KEY` in there as a live credential.
 
 Then in the **Monnify dashboard → Developer → Webhook URLs**, set the
 Transaction Completion URL to:
