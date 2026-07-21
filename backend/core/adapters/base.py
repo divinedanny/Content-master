@@ -8,6 +8,8 @@ This is the same discipline as the supplier adapters (Duffel/Tiqwa) in the
 travel platform: swap the implementation, the pipeline is untouched.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Protocol
 

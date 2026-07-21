@@ -46,6 +46,8 @@ live unread count, and **Mentions** is its own section so a tag never gets lost 
 
 ### 1. Backend (port 8000)
 
+Python 3.9+ works (3.10+ recommended).
+
 ```bash
 cd backend
 pip install django djangorestframework django-cors-headers python-dotenv requests
