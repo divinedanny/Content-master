@@ -24,7 +24,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from core.adapters.base import CAPABILITIES, capability
-from core.adapters.registry import get_adapter, get_policy
+from core.adapters.registry import get_adapter, get_policy, is_live
 from core.adapters.whatsapp import WhatsAppConfig
 from core.adapters.whatsapp import verify_webhook_signature as verify_whatsapp_signature
 from core.billing.monnify import verify_webhook_signature
@@ -121,7 +121,8 @@ def channels(request):
             "channel": channel_value,
             "label": cap.label,
             "connected": conn is not None and conn.status != "disconnected",
-            "is_mock": conn.is_mock if conn else False,
+            "is_mock": not is_live(channel_value),
+            "is_live": is_live(channel_value),
             "handle": conn.handle if conn else "",
             "supports_dm": cap.supports_dm,
             "supports_comments": cap.supports_comments,
