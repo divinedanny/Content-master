@@ -15,8 +15,7 @@ ENVIRONMENT = "demo"
 # Flag the UI can read to show a "demo data" banner.
 IS_DEMO = True
 
-# Open access (the demo has no login) but with sane throttles.
-REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"] = ["rest_framework.permissions.AllowAny"]
+# Auth required; sane throttles for a shared demo link.
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {"anon": "300/min", "user": "600/min"}
 
 # Restrict CORS to the demo origin if one is set; otherwise stay open so a

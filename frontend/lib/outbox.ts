@@ -11,6 +11,7 @@
 // client_id, so nothing is ever sent twice.
 
 import type { ChannelKey } from "./types";
+import { auth } from "./auth";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 const KEY = "cc_outbox_v1";
@@ -176,7 +177,7 @@ async function flushOne(item: OutboxItem) {
   try {
     const res = await fetch(`${BASE}/api/outbound/`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...auth.authHeader() },
       body: JSON.stringify({
         client_id: item.client_id,
         channel: item.channel,

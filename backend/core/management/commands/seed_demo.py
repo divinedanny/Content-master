@@ -136,6 +136,24 @@ class Command(BaseCommand):
             current_period_end=timezone.now() + timedelta(days=3),
         )
 
+        # Demo account so login works out of the box (QA / demo link).
+        # This is an intentional PUBLIC demo credential (shown on the login
+        # screen), not a real secret. Override with DEMO_PASSWORD in the env.
+        import os
+        from django.contrib.auth import get_user_model
+        from core.models import DEFAULT_NOTIFY_PREFS, UserProfile
+        demo_email = os.environ.get("DEMO_EMAIL", "demo@avionhub.ng")
+        demo_password = os.environ.get("DEMO_PASSWORD", "demo1234")
+        User = get_user_model()
+        User.objects.filter(username=demo_email).delete()
+        demo_user = User.objects.create_user(
+            username=demo_email, email=demo_email,
+            password=demo_password, first_name="Dayne",
+        )
+        UserProfile.objects.create(
+            user=demo_user, tenant=tenant, notify_prefs=DEFAULT_NOTIFY_PREFS,
+        )
+
         connections = {}
         for channel, handle in [
             (Channel.WHATSAPP, "+234 801 234 5678"),

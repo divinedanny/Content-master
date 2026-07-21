@@ -37,8 +37,13 @@ from core.models import (
 logger = logging.getLogger(__name__)
 
 
-def _tenant():
-    """Single-tenant demo resolution. Production reads this from auth."""
+def _tenant(request=None):
+    """Resolve the acting tenant from the signed-in user's profile."""
+    user = getattr(request, "user", None) if request is not None else None
+    if user is not None and user.is_authenticated:
+        profile = getattr(user, "profile", None)
+        if profile and profile.tenant:
+            return profile.tenant
     return Tenant.objects.first()
 
 
@@ -100,7 +105,7 @@ def _serialize_interaction(i: Interaction) -> dict:
 @api_view(["GET"])
 def channels(request):
     """Channel list with real capability constraints — drives the UI tabs."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     connections = {c.channel: c for c in ChannelConnection.objects.filter(tenant=tenant)}
     out = []
     for channel_value, cap in CAPABILITIES.items():
@@ -112,7 +117,7 @@ def channels(request):
         out.append({
             "channel": channel_value,
             "label": cap.label,
-            "connected": conn is not None,
+            "connected": conn is not None and conn.status != "disconnected",
             "is_mock": conn.is_mock if conn else False,
             "handle": conn.handle if conn else "",
             "supports_dm": cap.supports_dm,
@@ -139,7 +144,7 @@ def attention(request):
     Answers the question the whole product exists for: who is waiting, for
     how long, and which platform is being neglected?
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     unanswered_qs = Interaction.objects.filter(
         tenant=tenant, status__in=UNANSWERED_STATUSES, is_outbound=False,
     )
@@ -226,7 +231,7 @@ def inbox(request):
     This single endpoint powers Messages, Comments and Reviews — the tab
     strip is a filter, exactly as described in the PRD.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     channel = request.GET.get("channel", "all")
     kind = request.GET.get("kind", "message")
     unanswered_only = request.GET.get("unanswered") == "true"
@@ -254,7 +259,7 @@ def inbox(request):
 @api_view(["GET"])
 def thread(request, interaction_id):
     """Full conversation view for one interaction."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     try:
         target = Interaction.objects.select_related("draft").get(
             id=interaction_id, tenant=tenant
@@ -308,7 +313,7 @@ def approve_draft(request, interaction_id):
     Nothing reaches a customer without passing through here. On approval we
     check the platform policy, then send natively via the adapter.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     decision = request.data.get("decision", "approve")
     final_text = request.data.get("text", "")
 
@@ -408,7 +413,7 @@ def outbound(request):
     synchronously so an online send lands immediately. If that attempt fails
     (no network / platform unreachable) it stays queued and the worker retries.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
 
     if request.method == "GET":
         qs = OutboundMessage.objects.filter(tenant=tenant)
@@ -454,7 +459,7 @@ def outbound_process(request):
     Drain due queued messages. The client calls this when it comes back online
     to flush anything it buffered; the worker command calls the same code path.
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     summary = outbound_service.process_due(tenant)
     return Response(summary)
 
@@ -465,7 +470,7 @@ def outbound_process(request):
 
 @api_view(["GET", "POST"])
 def posts(request):
-    tenant = _tenant()
+    tenant = _tenant(request)
 
     if request.method == "POST":
         body = request.data.get("body", "")
@@ -527,7 +532,7 @@ def posts(request):
 @api_view(["GET"])
 def analytics(request):
     """Per-channel metrics plus the response-equity view (our differentiator)."""
-    tenant = _tenant()
+    tenant = _tenant(request)
     channel = request.GET.get("channel", "all")
 
     qs = Metric.objects.filter(tenant=tenant)
@@ -565,7 +570,7 @@ def analytics(request):
 
 @api_view(["GET"])
 def subscription(request):
-    tenant = _tenant()
+    tenant = _tenant(request)
     service = SubscriptionService(tenant)
     sub = service.subscription
     days_left = None
@@ -599,7 +604,7 @@ def checkout(request):
     Start a Monnify subscription payment.
     Returns a checkoutUrl the client redirects to (or hands to the SDK).
     """
-    tenant = _tenant()
+    tenant = _tenant(request)
     tier = request.data.get("tier")
     if tier not in TIER_PRICING_NGN:
         return Response({"error": "invalid tier"}, status=400)

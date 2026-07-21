@@ -1,24 +1,220 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, type NotifyPrefs, type TenantSettings } from "@/lib/api";
 import type { ChannelInfo, Subscription, CheckoutResult } from "@/lib/types";
 import { channelColor } from "@/lib/channels";
 import { ChannelBadge } from "@/components/ChannelIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner, StatusPill } from "@/components/ui";
 import { naira } from "@/lib/format";
+import { auth } from "@/lib/auth";
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <PageHeader
         title="Settings"
-        subtitle="Channel connections and Naira-native subscription billing via Monnify."
+        subtitle="Account, channel connections, AI brand voice, notifications and billing."
       />
+      <Account />
+      <BrandVoice />
+      <Notifications />
       <Billing />
       <Channels />
     </div>
+  );
+}
+
+/* --------------------------------------------------------------- Account */
+
+function Account() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+
+  useEffect(() => {
+    const u = auth.getUser();
+    if (u) {
+      setName(u.name);
+      setEmail(u.email);
+    }
+  }, []);
+
+  async function saveProfile() {
+    setMsg(null);
+    const res = await api.updateProfile({ name, email });
+    if (res.__status && res.__status >= 400) {
+      setMsg(res.error || "Could not save.");
+    } else {
+      await auth.refresh();
+      setMsg("Saved.");
+    }
+  }
+
+  async function changePw() {
+    setPwMsg(null);
+    const res = await api.changePassword(current, next);
+    if (res.__status && res.__status >= 400) {
+      setPwMsg(res.error || "Could not change password.");
+    } else {
+      if (res.token) auth.setSession(res.token, auth.getUser()!);
+      setCurrent("");
+      setNext("");
+      setPwMsg("Password changed.");
+    }
+  }
+
+  return (
+    <Section title="Account" subtitle="Your profile and sign-in details.">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Labeled label="Full name">
+          <Input value={name} onChange={setName} />
+        </Labeled>
+        <Labeled label="Email">
+          <Input value={email} onChange={setEmail} type="email" />
+        </Labeled>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={saveProfile}>Save profile</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+
+      <div className="mt-6 border-t border-white/[0.06] pt-5">
+        <div className="mb-3 text-sm font-semibold text-slate-200">Change password</div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Labeled label="Current password">
+            <Input value={current} onChange={setCurrent} type="password" />
+          </Labeled>
+          <Labeled label="New password">
+            <Input value={next} onChange={setNext} type="password" />
+          </Labeled>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <SaveButton onClick={changePw} disabled={!current || !next}>Update password</SaveButton>
+          {pwMsg && <Note text={pwMsg} />}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/* ---------------------------------------------------- Brand voice & quiet hours */
+
+function BrandVoice() {
+  const [settings, setSettings] = useState<TenantSettings | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.tenantSettings().then(setSettings).catch(() => {});
+  }, []);
+
+  if (!settings) return <Section title="Brand voice & quiet hours"><Spinner /></Section>;
+
+  async function save() {
+    setMsg(null);
+    const res = await api.saveTenantSettings(settings!);
+    if (res.__status && res.__status >= 400) setMsg("Could not save.");
+    else setMsg("Saved.");
+  }
+
+  return (
+    <Section
+      title="Brand voice & quiet hours"
+      subtitle="Guidance injected into AI drafts, and the window the outbound queue may send proactive messages."
+    >
+      <Labeled label="Brand voice / knowledge">
+        <textarea
+          value={settings.brand_voice}
+          onChange={(e) => setSettings({ ...settings, brand_voice: e.target.value })}
+          rows={4}
+          className="w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+          placeholder="e.g. Warm, professional Nigerian customer service. Never promise a price without confirming."
+        />
+      </Labeled>
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:max-w-xs">
+        <Labeled label="Quiet hours start">
+          <Input
+            type="time"
+            value={settings.quiet_hours_start}
+            onChange={(v) => setSettings({ ...settings, quiet_hours_start: v })}
+          />
+        </Labeled>
+        <Labeled label="Quiet hours end">
+          <Input
+            type="time"
+            value={settings.quiet_hours_end}
+            onChange={(v) => setSettings({ ...settings, quiet_hours_end: v })}
+          />
+        </Labeled>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={save}>Save</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------ Notifications */
+
+const NOTIF_EVENTS: { key: string; label: string }[] = [
+  { key: "new_message", label: "New direct message" },
+  { key: "mention", label: "New @mention" },
+  { key: "review", label: "New review" },
+];
+
+function Notifications() {
+  const [prefs, setPrefs] = useState<NotifyPrefs | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const u = auth.getUser();
+    if (u?.notify_prefs) setPrefs(u.notify_prefs);
+    else auth.refresh().then((x) => x?.notify_prefs && setPrefs(x.notify_prefs));
+  }, []);
+
+  if (!prefs) return <Section title="Notifications"><Spinner /></Section>;
+
+  function toggle(event: string, channel: "in_app" | "email") {
+    setPrefs((p) => ({
+      ...p!,
+      [event]: { ...p![event], [channel]: !p![event]?.[channel] },
+    }));
+  }
+
+  async function save() {
+    setMsg(null);
+    await api.saveNotifications(prefs!);
+    const u = auth.getUser();
+    if (u) auth.setUser({ ...u, notify_prefs: prefs! });
+    setMsg("Saved.");
+  }
+
+  return (
+    <Section title="Notifications" subtitle="Choose what reaches you, and where.">
+      <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 border-b border-white/[0.06] bg-white/[0.02] px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <span>Event</span>
+          <span className="text-center">In-app</span>
+          <span className="text-center">Email</span>
+        </div>
+        {NOTIF_EVENTS.map((ev) => (
+          <div key={ev.key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 px-4 py-3 text-sm">
+            <span className="text-slate-200">{ev.label}</span>
+            <Toggle on={!!prefs[ev.key]?.in_app} onClick={() => toggle(ev.key, "in_app")} />
+            <Toggle on={!!prefs[ev.key]?.email} onClick={() => toggle(ev.key, "email")} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <SaveButton onClick={save}>Save preferences</SaveButton>
+        {msg && <Note text={msg} />}
+      </div>
+    </Section>
   );
 }
 
@@ -267,16 +463,27 @@ function Feature({ children }: { children: React.ReactNode }) {
 
 function Channels() {
   const [channels, setChannels] = useState<ChannelInfo[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => api.channels().then(setChannels);
   useEffect(() => {
-    api.channels().then(setChannels);
+    load();
   }, []);
+
+  async function toggle(c: ChannelInfo) {
+    setBusy(c.channel);
+    if (c.connected) await api.disconnectChannel(c.channel);
+    else await api.connectChannel(c.channel);
+    await load();
+    setBusy(null);
+  }
 
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-white">Channel connections</h2>
         <p className="text-sm text-slate-500">
-          What each platform actually permits — encoded, not hidden.
+          Connect or disconnect a platform. What each one actually permits is encoded, not hidden.
         </p>
       </div>
       {!channels ? (
@@ -303,11 +510,22 @@ function Channels() {
                   <p className="mt-2 text-xs leading-relaxed text-slate-400">
                     {cleanNote(c.constraint_note)}
                   </p>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <Cap ok={c.supports_dm} label="DMs" />
                     <Cap ok={c.supports_comments} label="Comments" />
                     <Cap ok={c.supports_publish} label="Publish" />
                   </div>
+                  <button
+                    onClick={() => toggle(c)}
+                    disabled={busy === c.channel}
+                    className={`mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                      c.connected
+                        ? "border border-white/10 text-slate-300 hover:border-rose-500/40 hover:text-rose-300"
+                        : "bg-accent/90 text-white hover:bg-accent"
+                    }`}
+                  >
+                    {busy === c.channel ? "…" : c.connected ? "Disconnect" : "Connect"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -315,6 +533,97 @@ function Channels() {
         </div>
       )}
     </section>
+  );
+}
+
+/* --------------------------------------------------------- shared bits */
+
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      <div className="panel p-5">{children}</div>
+    </section>
+  );
+}
+
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Input({
+  value,
+  onChange,
+  type = "text",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
+    />
+  );
+}
+
+function SaveButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-glow disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function Note({ text }: { text: string }) {
+  return <span className="text-xs text-emerald-300">{text}</span>;
+}
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`mx-auto flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+        on ? "bg-accent" : "bg-white/10"
+      }`}
+      role="switch"
+      aria-checked={on}
+    >
+      <span className={`h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : ""}`} />
+    </button>
   );
 }
 

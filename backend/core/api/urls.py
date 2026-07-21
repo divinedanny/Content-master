@@ -1,9 +1,26 @@
 """API routes."""
 from django.urls import path
 
-from core.api import views
+from core.api import auth_views, settings_views, views
 
 urlpatterns = [
+    # -- auth --
+    path("auth/register/", auth_views.register, name="register"),
+    path("auth/login/", auth_views.login, name="login"),
+    path("auth/logout/", auth_views.logout, name="logout"),
+    path("auth/me/", auth_views.me, name="me"),
+    path("auth/password/reset/", auth_views.request_password_reset, name="password_reset"),
+    path("auth/password/reset/confirm/", auth_views.confirm_password_reset, name="password_reset_confirm"),
+    path("auth/password/change/", auth_views.change_password, name="password_change"),
+    path("auth/profile/", auth_views.update_profile, name="update_profile"),
+    # -- settings --
+    path("settings/tenant/", settings_views.tenant_settings, name="tenant_settings"),
+    path("settings/notifications/", settings_views.notification_settings, name="notification_settings"),
+    path("channels/<str:channel>/connect/", settings_views.channel_connect, name="channel_connect"),
+    path("channels/<str:channel>/disconnect/", settings_views.channel_disconnect, name="channel_disconnect"),
+]
+
+urlpatterns += [
     path("channels/", views.channels, name="channels"),
     path("attention/", views.attention, name="attention"),
     path("inbox/", views.inbox, name="inbox"),
