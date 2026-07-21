@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: command-centre
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/OWNER/command-centre-frontend:latest
+          ports: [{ containerPort: 3000 }]
+          env:
+            - { name: BACKEND_ORIGIN, value: "http://backend:8000" }
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { cpu: "300m", memory: "384Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: command-centre
+spec:
+  selector: { app: frontend }
+  ports: [{ port: 3000, targetPort: 3000 }]
+---
+# Ingress = the cloud API gateway / L7 load balancer + TLS termination.
+# Routes /api and /webhooks to the backend, everything else to the frontend.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: command-centre
+  namespace: command-centre
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod   # auto TLS via cert-manager
+    nginx.ingress.kubernetes.io/limit-rps: "20"        # edge rate limiting
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [app.commandcentre.ng]
+      secretName: command-centre-tls
+  rules:
+    - host: app.commandcentre.ng
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: backend, port: { number: 8000 } } }
+          - path: /webhooks
+            pathType: Prefix
+            backend: { service: { name: backend, port: { number: 8000 } } }
+          - path: /healthz
+            pathType: Prefix
+            backend: { service: { name: backend, port: { number: 8000 } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: frontend, port: { number: 3000 } } }
