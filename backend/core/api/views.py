@@ -26,10 +26,12 @@ from core.adapters.base import CAPABILITIES, capability
 from core.adapters.registry import get_adapter, get_policy
 from core.billing.monnify import verify_webhook_signature
 from core.billing.services import SubscriptionService, process_transaction_webhook
+from core import outbound as outbound_service
 from core.models import (
     Channel, ChannelConnection, Draft, Interaction, InteractionKind,
-    InteractionStatus, Metric, Post, PostPublication, Subscription,
-    TIER_LIMITS, TIER_PRICING_NGN, Tenant, UNANSWERED_STATUSES,
+    InteractionStatus, Metric, OutboundMessage, OutboundStatus, Post,
+    PostPublication, Subscription, TIER_LIMITS, TIER_PRICING_NGN, Tenant,
+    UNANSWERED_STATUSES,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +81,7 @@ def _serialize_interaction(i: Interaction) -> dict:
         "priority": i.priority,
         "status": i.status,
         "is_unanswered": i.is_unanswered,
+        "is_outbound": i.is_outbound,
         "first_response_seconds": i.first_response_seconds,
         "first_response_label": _humanize(i.first_response_seconds),
         "draft": {
@@ -263,6 +266,12 @@ def thread(request, interaction_id):
         tenant=tenant, thread_id=target.thread_id
     ).select_related("draft").order_by("received_at")
 
+    # Pending (queued/sending/failed) outbound messages appear inline so the
+    # conversation reads like a normal DM even before delivery completes.
+    pending = OutboundMessage.objects.filter(
+        tenant=tenant, thread_id=target.thread_id,
+    ).exclude(status=OutboundStatus.SENT).order_by("created_at")
+
     cap = capability(target.channel)
     adapter = get_adapter(
         ChannelConnection.objects.get(tenant=tenant, channel=target.channel)
@@ -272,6 +281,7 @@ def thread(request, interaction_id):
     return Response({
         "interaction": _serialize_interaction(target),
         "messages": [_serialize_interaction(m) for m in messages],
+        "pending": [outbound_service.serialize_outbound(m) for m in pending],
         "channel": {
             "channel": target.channel,
             "label": cap.label,
@@ -372,6 +382,81 @@ def approve_draft(request, interaction_id):
         "first_response_seconds": interaction.first_response_seconds,
         "first_response_label": _humanize(interaction.first_response_seconds),
     })
+
+
+# ---------------------------------------------------------------------------
+# Outbound message queue — start / continue / reply on any platform
+# ---------------------------------------------------------------------------
+
+@api_view(["GET", "POST"])
+def outbound(request):
+    """
+    GET  ?pending=true | ?thread_id=<id>   -> list outbound messages
+    POST                                    -> queue a human-composed message
+
+    POST body:
+      client_id            (required) client-generated UUID, idempotency key
+      channel              (required) channel key
+      body                 (required) message text
+      interaction_id       (optional) reply to this inbound interaction
+      thread_id            (optional) continue an existing thread
+      recipient_handle     (optional) start a new conversation with this person
+      recipient_display_name (optional)
+      used_ai_draft        (optional) whether the text came from the AI suggestion
+
+    The message is persisted first, then delivery is attempted once
+    synchronously so an online send lands immediately. If that attempt fails
+    (no network / platform unreachable) it stays queued and the worker retries.
+    """
+    tenant = _tenant()
+
+    if request.method == "GET":
+        qs = OutboundMessage.objects.filter(tenant=tenant)
+        if request.GET.get("thread_id"):
+            qs = qs.filter(thread_id=request.GET["thread_id"])
+        if request.GET.get("pending") == "true":
+            qs = qs.exclude(status=OutboundStatus.SENT)
+        qs = qs.order_by("-created_at")[:200]
+        return Response([outbound_service.serialize_outbound(m) for m in qs])
+
+    client_id = request.data.get("client_id")
+    channel = request.data.get("channel")
+    body = (request.data.get("body") or "").strip()
+
+    if not client_id or not channel or not body:
+        return Response(
+            {"error": "client_id, channel and body are required"}, status=400
+        )
+    if channel not in CAPABILITIES:
+        return Response({"error": "unknown channel"}, status=400)
+
+    msg = outbound_service.enqueue(
+        tenant,
+        client_id=client_id,
+        channel=channel,
+        body=body,
+        thread_id=request.data.get("thread_id", ""),
+        parent_interaction_id=request.data.get("interaction_id"),
+        recipient_handle=request.data.get("recipient_handle", ""),
+        recipient_display_name=request.data.get("recipient_display_name", ""),
+        used_ai_draft=bool(request.data.get("used_ai_draft")),
+    )
+
+    # Best-effort immediate delivery for the online case; queued otherwise.
+    msg = outbound_service.attempt_send(msg)
+
+    return Response(outbound_service.serialize_outbound(msg), status=201)
+
+
+@api_view(["POST"])
+def outbound_process(request):
+    """
+    Drain due queued messages. The client calls this when it comes back online
+    to flush anything it buffered; the worker command calls the same code path.
+    """
+    tenant = _tenant()
+    summary = outbound_service.process_due(tenant)
+    return Response(summary)
 
 
 # ---------------------------------------------------------------------------

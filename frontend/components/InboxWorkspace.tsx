@@ -64,7 +64,7 @@ export function InboxWorkspace({
   // unanswered counts for tab badges
   const refreshCounts = useCallback(() => {
     if (countLoader) {
-      countLoader().then(setCounts);
+      countLoader().then(setCounts).catch(() => {});
       return;
     }
     api.channels().then((chs: ChannelInfo[]) => {
@@ -78,7 +78,7 @@ export function InboxWorkspace({
       });
       c.all = all;
       setCounts(c);
-    });
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels]);
 
@@ -86,22 +86,35 @@ export function InboxWorkspace({
     refreshCounts();
   }, [refreshCounts]);
 
-  const load = useCallback(() => {
-    const q = resolveQuery(tab);
-    setItems(null);
-    api.inbox(q).then((data) => {
-      const filtered = clientFilter ? data.filter(clientFilter) : data;
-      const sorted = negativeFirst
-        ? [...filtered].sort((a, b) => {
-            const rank = (s: string) => (s === "negative" ? 0 : s === "neutral" ? 1 : 2);
-            return rank(a.sentiment) - rank(b.sentiment);
-          })
-        : filtered;
-      setItems(sorted);
-      setSelectedId((prev) => (prev && sorted.some((i) => i.id === prev) ? prev : sorted[0]?.id ?? null));
-    });
+  const load = useCallback(
+    (opts: { silent?: boolean } = {}) => {
+      const q = resolveQuery(tab);
+      // Only blank the list on a first/tab load — a silent refresh keeps the
+      // current view (and the open conversation) intact, which matters when a
+      // refresh races an offline network.
+      if (!opts.silent) setItems(null);
+      api
+        .inbox(q)
+        .then((data) => {
+          const filtered = clientFilter ? data.filter(clientFilter) : data;
+          const sorted = negativeFirst
+            ? [...filtered].sort((a, b) => {
+                const rank = (s: string) => (s === "negative" ? 0 : s === "neutral" ? 1 : 2);
+                return rank(a.sentiment) - rank(b.sentiment);
+              })
+            : filtered;
+          setItems(sorted);
+          setSelectedId((prev) =>
+            prev && sorted.some((i) => i.id === prev) ? prev : sorted[0]?.id ?? null
+          );
+        })
+        .catch(() => {
+          /* offline / transient — keep whatever is on screen */
+        });
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, negativeFirst]);
+    [tab, negativeFirst]
+  );
 
   useEffect(() => {
     load();
@@ -167,7 +180,7 @@ export function InboxWorkspace({
               key={selected.id}
               interactionId={selected.id}
               onResolved={() => {
-                load();
+                load({ silent: true });
                 refreshCounts();
               }}
               onBack={() => setShowConvoMobile(false)}

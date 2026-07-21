@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar, MobileNav, Brand } from "@/components/Nav";
 import { NotificationsBell } from "@/components/Notifications";
+import { OutboxIndicator, ConnectionBanner } from "@/components/OutboxStatus";
 
 export const metadata: Metadata = {
   title: "Command Centre — one inbox for every platform",
@@ -25,12 +26,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Good day, Avion Hub 👋
               </div>
               <div className="flex items-center gap-2.5">
+                <OutboxIndicator />
                 <NotificationsBell />
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent to-instagram text-sm font-bold text-white">
                   AH
                 </div>
               </div>
             </header>
+            <ConnectionBanner />
             <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-5 sm:px-6 md:pb-8 md:pt-8">
               {children}
             </main>

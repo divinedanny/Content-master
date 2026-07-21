@@ -7,6 +7,7 @@ import { InboxWorkspace } from "@/components/InboxWorkspace";
 import type { TabKey } from "@/components/TabStrip";
 import type { ChannelKey } from "@/lib/types";
 import { Spinner } from "@/components/ui";
+import { NewConversationButton } from "@/components/NewConversation";
 
 const MESSAGE_CHANNELS: ChannelKey[] = [
   "whatsapp",
@@ -27,8 +28,10 @@ function MessagesInner() {
     <div>
       <PageHeader
         title="Messages"
-        subtitle="Every platform's DMs in one list. Click a tab to focus one channel — the same interaction model everywhere."
-      />
+        subtitle="Every platform's DMs in one list. Start, continue or reply to any conversation — the same interaction model everywhere."
+      >
+        <NewConversationButton />
+      </PageHeader>
       <InboxWorkspace
         channels={MESSAGE_CHANNELS}
         initialTab={initialTab}
