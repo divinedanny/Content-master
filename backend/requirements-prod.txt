@@ -1,0 +1,12 @@
+# Production extras — installed on top of the base set for a real deployment.
+-r requirements.txt
+
+gunicorn>=21.2                     # WSGI server
+psycopg[binary]>=3.1              # PostgreSQL driver
+whitenoise>=6.6                   # static file serving
+django-redis>=5.4                # Redis cache backend
+djangorestframework-simplejwt>=5.3  # JWT auth
+channels>=4.0                    # WebSockets (ASGI)
+channels-redis>=4.2              # channel layer over Redis
+daphne>=4.1                      # ASGI server for Channels
+redis>=5.0
